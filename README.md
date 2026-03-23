@@ -209,7 +209,7 @@ For a complete guide with examples for every command, see **[USAGE.md](USAGE.md)
 ## Development
 
 ```bash
-git clone https://github.com/bambalados/SigmaMoneyCLI.git
+git clone https://github.com/bambalados/sigmaCLI.git
 cd SigmaMoneyCLI
 npm install
 npm run build       # Build the CLI

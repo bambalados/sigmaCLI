@@ -27,10 +27,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bambalados/SigmaMoneyCLI.git"
+    "url": "git+https://github.com/bambalados/sigmaCLI.git"
   },
   "bugs": {
-    "url": "https://github.com/bambalados/SigmaMoneyCLI/issues"
+    "url": "https://github.com/bambalados/sigmaCLI/issues"
   },
   "homepage": "https://sigma.money",
   "dependencies": {
