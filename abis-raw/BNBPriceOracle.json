@@ -1,0 +1,14 @@
+[
+  {"type":"event","name":"UpdateCurvePool","inputs":[{"name":"oldPool","type":"address","indexed":true},{"name":"newPool","type":"address","indexed":true}]},
+  {"type":"event","name":"UpdateMaxPriceDeviation","inputs":[{"name":"oldDePegDeviation","type":"uint256","indexed":false},{"name":"oldUpPegDeviation","type":"uint256","indexed":false},{"name":"newDePegDeviation","type":"uint256","indexed":false},{"name":"newUpPegDeviation","type":"uint256","indexed":false}]},
+  {"type":"function","name":"fxUSD","inputs":[],"outputs":[{"name":"","type":"address"}],"stateMutability":"view"},
+  {"type":"function","name":"curvePool","inputs":[],"outputs":[{"name":"","type":"address"}],"stateMutability":"view"},
+  {"type":"function","name":"maxDePegPriceDeviation","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"maxUpPegPriceDeviation","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"getUSDCPrice","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"getPrice","inputs":[],"outputs":[{"name":"isPegged","type":"bool"},{"name":"price","type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"isPriceAboveMaxDeviation","inputs":[],"outputs":[{"name":"","type":"bool"}],"stateMutability":"view"},
+  {"type":"function","name":"isPriceBelowMaxDeviation","inputs":[],"outputs":[{"name":"","type":"bool"}],"stateMutability":"view"},
+  {"type":"function","name":"updateCurvePool","inputs":[{"name":"newPool","type":"address"}],"outputs":[],"stateMutability":"nonpayable"},
+  {"type":"function","name":"updateMaxPriceDeviation","inputs":[{"name":"newDePegDeviation","type":"uint256"},{"name":"newUpPegDeviation","type":"uint256"}],"outputs":[],"stateMutability":"nonpayable"}
+]

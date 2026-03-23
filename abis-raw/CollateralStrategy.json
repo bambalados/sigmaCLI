@@ -1,0 +1,14 @@
+[
+  {"type":"event","name":"Harvested","inputs":[{"name":"profit","type":"uint256","indexed":false},{"name":"loss","type":"uint256","indexed":false},{"name":"debtPayment","type":"uint256","indexed":false}]},
+  {"type":"function","name":"want","inputs":[],"outputs":[{"name":"","type":"address"}],"stateMutability":"view"},
+  {"type":"function","name":"vault","inputs":[],"outputs":[{"name":"","type":"address"}],"stateMutability":"view"},
+  {"type":"function","name":"deposit","inputs":[],"outputs":[],"stateMutability":"nonpayable"},
+  {"type":"function","name":"withdraw","inputs":[{"name":"amount","type":"uint256"}],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"nonpayable"},
+  {"type":"function","name":"withdrawAll","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"nonpayable"},
+  {"type":"function","name":"harvest","inputs":[],"outputs":[],"stateMutability":"nonpayable"},
+  {"type":"function","name":"balanceOf","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"balanceOfWant","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"balanceOfPool","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"estimatedTotalAssets","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"pendingRewards","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"}
+]

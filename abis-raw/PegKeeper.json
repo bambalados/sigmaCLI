@@ -1,0 +1,21 @@
+[
+  {"type":"event","name":"UpdateConverter","inputs":[{"name":"oldConverter","type":"address","indexed":true},{"name":"newConverter","type":"address","indexed":true}]},
+  {"type":"event","name":"UpdateCurvePool","inputs":[{"name":"oldPool","type":"address","indexed":true},{"name":"newPool","type":"address","indexed":true}]},
+  {"type":"event","name":"UpdatePriceThreshold","inputs":[{"name":"oldThreshold","type":"uint256","indexed":false},{"name":"newThreshold","type":"uint256","indexed":false}]},
+  {"type":"function","name":"fxUSD","inputs":[],"outputs":[{"name":"","type":"address"}],"stateMutability":"view"},
+  {"type":"function","name":"stable","inputs":[],"outputs":[{"name":"","type":"address"}],"stateMutability":"view"},
+  {"type":"function","name":"fxBASE","inputs":[],"outputs":[{"name":"","type":"address"}],"stateMutability":"view"},
+  {"type":"function","name":"converter","inputs":[],"outputs":[{"name":"","type":"address"}],"stateMutability":"view"},
+  {"type":"function","name":"curvePool","inputs":[],"outputs":[{"name":"","type":"address"}],"stateMutability":"view"},
+  {"type":"function","name":"priceThreshold","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"isBorrowAllowed","inputs":[],"outputs":[{"name":"","type":"bool"}],"stateMutability":"view"},
+  {"type":"function","name":"isRedeemAllowed","inputs":[],"outputs":[{"name":"","type":"bool"}],"stateMutability":"view"},
+  {"type":"function","name":"isFundingEnabled","inputs":[],"outputs":[{"name":"","type":"bool"}],"stateMutability":"view"},
+  {"type":"function","name":"getFxUSDPrice","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"buyback","inputs":[{"name":"amountIn","type":"uint256"},{"name":"data","type":"bytes"}],"outputs":[{"name":"amountOut","type":"uint256"},{"name":"bonusOut","type":"uint256"}],"stateMutability":"nonpayable"},
+  {"type":"function","name":"stabilize","inputs":[{"name":"srcToken","type":"address"},{"name":"amountIn","type":"uint256"},{"name":"data","type":"bytes"}],"outputs":[{"name":"amountOut","type":"uint256"},{"name":"bonusOut","type":"uint256"}],"stateMutability":"nonpayable"},
+  {"type":"function","name":"onSwap","inputs":[{"name":"srcToken","type":"address"},{"name":"targetToken","type":"address"},{"name":"amountIn","type":"uint256"},{"name":"data","type":"bytes"}],"outputs":[{"name":"amountOut","type":"uint256"}],"stateMutability":"nonpayable"},
+  {"type":"function","name":"updateConverter","inputs":[{"name":"newConverter","type":"address"}],"outputs":[],"stateMutability":"nonpayable"},
+  {"type":"function","name":"updateCurvePool","inputs":[{"name":"newPool","type":"address"}],"outputs":[],"stateMutability":"nonpayable"},
+  {"type":"function","name":"updatePriceThreshold","inputs":[{"name":"newThreshold","type":"uint256"}],"outputs":[],"stateMutability":"nonpayable"}
+]

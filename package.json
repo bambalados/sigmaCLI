@@ -1,0 +1,49 @@
+{
+  "name": "sigma-money",
+  "version": "1.0.0",
+  "description": "CLI for Sigma.Money DeFi protocol on BNB Chain",
+  "type": "module",
+  "bin": {
+    "sigma": "./dist/bin/sigma.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup && node -e \"const fs=require('fs');const f='dist/bin/sigma.js';const c=fs.readFileSync(f,'utf8');if(!c.startsWith('#!'))fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c)\" && chmod +x dist/bin/sigma.js",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["sigma", "defi", "bnb", "bsc", "cli", "web3"],
+  "author": "Sigma.Money Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bambalados/SigmaMoneyCLI.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bambalados/SigmaMoneyCLI/issues"
+  },
+  "homepage": "https://sigma.money",
+  "dependencies": {
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.7",
+    "picocolors": "^1.1.1",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}

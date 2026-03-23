@@ -1,0 +1,113 @@
+import type { Address } from 'viem';
+
+export const ADDRESSES = {
+  // Core tokens
+  BNBUSD: '0x5519a479Da8Ce3Af7f373c16f14870BbeaFDa265' as Address,
+  SIGMA: '0x85375D3e9c4a39350f1140280a8b0De6890A40e7' as Address,
+  XSIGMA: '0x66A24749dFaF0DB981a0bbB2C3A8aB70292e8442' as Address,
+
+  // Core protocol
+  SIGMA_CONTROLLER: '0xaB98D10CA647B90564feB4D7C4489b09B701188b' as Address,
+  POOL_MANAGER: '0x0a43ca87954ED1799b7b072F6E9D51d88Cca600E' as Address,
+  PEG_KEEPER: '0xEE3f89a14dDD6f77dEE050AA4f9d3a52947373F6' as Address,
+
+  // Oracles
+  BNB_PRICE_ORACLE: '0x45dCDFcE8C0D163708Eaa47ab5e72280AF3eFa3E' as Address,
+  PANCAKE_V3_SPOT_PRICE_READER: '0x220eD3bA9708f52D19B6Df573A0C973E474780E5' as Address,
+  SY_BNB_RATE_PROVIDER: '0x1cf9Bf3506cbA6Ec27cC0CcC0B04ec0FDCa92095' as Address,
+
+  // Stability Pools
+  BNBUSD_BASE_POOL: '0x2b9C1F069Ddcd873275B3363986081bDA94A3aA3' as Address,
+  TOKEN_SIGMA_SP1: '0xDe1bdd429692e12E60796AE02208B14Fd5EaCea7' as Address,
+  TOKEN_SIGMA_SP2: '0x16D39a7a489DcBEB1EC6Da383F1D95a7b1754c94' as Address,
+  TOKEN_SIGMA_SP3: '0x1a36aAf9946e38fc770E70878C83fa5EfE86a635' as Address,
+
+  // SY (Pendle wrapper)
+  SY: '0x8B98563d66B74e5a644BFf78fC72c86bbA847a29' as Address,
+  SY_POOL: '0xe8a16F808412C4341F692B49C81d64C374187B7D' as Address,
+
+  // Short positions
+  SHORT_POOL_MANAGER: '0x8E473CDcdeb8DfAA41F92e3b4a284e134Ac4AcB2' as Address,
+  SHORT_POOL_0: '0x6C83261d45a394475bc1f4E2C6355b8d9c621855' as Address, // main short pool (51 positions)
+  SHORT_POOL_1: '0x9415376EEdE403dD531a1eCF05bdFDaDC5362c25' as Address, // secondary short pool
+
+  // Revenue pools
+  OPEN_REVENUE_POOL: '0x1b54fe8763fC8d0018487bE53b05225ba4E08d44' as Address,
+  CLOSE_REVENUE_POOL: '0x232DA2Fc5786d9Eb0cd7aa7BB96Dc7663b64d4cB' as Address,
+  MISC_REVENUE_POOL: '0x9a4C05cA486AAB152C19bFc7a038dE650A424e42' as Address,
+
+  // Gauges
+  GAUGE_EMISSION: '0x0626bd1B58c669670aD7BBa21ac3c2F6eAf70348' as Address,
+  GAUGE_SIGMA_SP: '0xf9A32F5D9f7E6b18bC1ad90Aa1D71d4a56CBe316' as Address,
+  GAUGE_USDT_BNBUSD: '0x1F04a2AC40020179075d3202c584CC05DC5D95F8' as Address,
+  GAUGE_SIGMA_BNBUSD: '0x6a25b41Cd9881477b2b7709f38C5524C38A74Ae5' as Address,
+  GAUGE_FACTORY: '0x1F3C3DCA7E9Cf2c7BFaFE8F1a770Db0f97b9f3c5' as Address,
+  GAUGE_VE_FUNDER_FACTORY: '0x6F0DF1D08318BfE16C7C5FE77b2edccD3Fb0ac5c' as Address,
+  GAUGE_VOTE_MODULE: '0x3FAb767ff8340973a87975Db13999fD1eaf99965' as Address,
+  GAUGE_VOTER: '0x3E8832E6395A148e4Db357E659E887CB7580F56E' as Address,
+
+  // Gauge pools
+  GAUGE_SIGMA_SP1: '0x33f8bf95186cff0B5FC34F069ce232a23FAD6A33' as Address,
+  GAUGE_SIGMA_SP2: '0x3E04CB6f38a1a6d4c7F63C4A8B04d2db50d6ae0E' as Address,
+  GAUGE_BNBUSD_POOL: '0x5e7bfb5c6d65cCFe76E0FF1F7a8C78C5e6f65d5B' as Address,
+  GAUGE_VE_FUNDER_BOOSTER: '0x1aeb2b3a6b97d0afd8c7691f79b6f4b6b5f4b91c' as Address,
+  GAUGE_BOOSTER_RECEIVER: '0x4e2B8b7c6d3F8e9aD0C1d2E3f4A5b6C7D8E9F0A1' as Address,
+
+  // Strategies
+  COLLATERAL_STRATEGY: '0x6dBC0204FD0Bb1e7941F08392D13963534936668' as Address,
+  STABILITY_POOL_STRATEGY: '0x434A5545534BF2AbF9133b00394841DF9C35f87e' as Address,
+
+  // Curve AMM pools (pool address = LP token)
+  CURVE_BNBUSD_USDT: '0xE6e2905F54BAF7625F4943B74c50338362741Cd4' as Address,
+  CURVE_SIGMA_BNBUSD: '0xB84637aB9Be835580821A67823f414FFd0bbf625' as Address,
+  CURVE_BNBUSD_U: '0xed55ff3fcb43249838a04a9707ff2c4b825507ff' as Address,
+
+  // PancakeSwap V3
+  PANCAKE_V3_ROUTER: '0x13f4EA83D0bd40E75C8222255bc855a974568Dd4' as Address,
+  PANCAKE_V3_QUOTER: '0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997' as Address,
+
+  // External tokens
+  U_TOKEN: '0xcE24439F2D9C6a2289F741120FE202248B666666' as Address,
+  WBNB: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c' as Address,
+  USDT: '0x55d398326f99059fF775485246999027B3197955' as Address,
+  SLISBNB: '0xB0b84D294e0C75A6abe60171b70edEb2EFd14A1B' as Address,
+  CLISBNB: '0x4b30fcAA7945fE9fDEFD2895aae539ba102Ed6F6' as Address,
+} as const;
+
+// Governance aliases (cleaner names for SDK use)
+export const VOTE_MODULE = ADDRESSES.GAUGE_VOTE_MODULE;
+export const VOTER = ADDRESSES.GAUGE_VOTER;
+
+// Leverage pool (IPool) — the actual pool where positions are opened/managed
+// SY_POOL implements the IPool interface with operate(), getPosition(), etc.
+// Collateral: SY token (wrapped BNB yield-bearing). Price oracle: BNBPriceOracle.
+// Rebalance at 88%, liquidate at 95% debt ratio.
+export const LEVERAGE_POOL = ADDRESSES.SY_POOL;
+
+// Pool name to address mapping for stability pools
+export const STABILITY_POOLS = {
+  SP: ADDRESSES.BNBUSD_BASE_POOL,
+  SP1: ADDRESSES.TOKEN_SIGMA_SP1,
+  SP2: ADDRESSES.TOKEN_SIGMA_SP2,
+  SP3: ADDRESSES.TOKEN_SIGMA_SP3,
+} as const;
+
+// Gauge pool mapping
+export const GAUGE_POOLS = {
+  'bnbUSD-USDT': ADDRESSES.GAUGE_USDT_BNBUSD,
+  'SIGMA-bnbUSD': ADDRESSES.GAUGE_SIGMA_BNBUSD,
+  SP: ADDRESSES.GAUGE_SIGMA_SP,
+} as const;
+
+// Stability pool gauge mapping (for staking SP shares to earn xSIGMA)
+export const SP_GAUGES: Partial<Record<StabilityPoolName, `0x${string}`>> = {
+  SP: ADDRESSES.GAUGE_SIGMA_SP,
+  SP1: ADDRESSES.GAUGE_SIGMA_SP1,
+  SP2: ADDRESSES.GAUGE_SIGMA_SP2,
+};
+
+// Short leverage pool (main) — uses ShortPoolManager, collateral is bnbUSD, debt is volatile SY
+export const SHORT_POOL = ADDRESSES.SHORT_POOL_0;
+
+export type StabilityPoolName = keyof typeof STABILITY_POOLS;
+export type GaugePoolName = keyof typeof GAUGE_POOLS;

@@ -1,0 +1,15 @@
+[
+  {"type":"event","name":"UpdateMiningParameters","inputs":[{"name":"time","type":"uint256","indexed":false},{"name":"rate","type":"uint256","indexed":false},{"name":"supply","type":"uint256","indexed":false}]},
+  {"type":"event","name":"SetAdmin","inputs":[{"name":"admin","type":"address","indexed":false}]},
+  {"type":"function","name":"token","inputs":[],"outputs":[{"name":"","type":"address"}],"stateMutability":"view"},
+  {"type":"function","name":"rate","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"startEpochTime","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"startEpochSupply","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"miningEpoch","inputs":[],"outputs":[{"name":"","type":"int128"}],"stateMutability":"view"},
+  {"type":"function","name":"futureEpochTimeWrite","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"nonpayable"},
+  {"type":"function","name":"updateMiningParameters","inputs":[],"outputs":[],"stateMutability":"nonpayable"},
+  {"type":"function","name":"availableSupply","inputs":[],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"mintableInTimeframe","inputs":[{"name":"start","type":"uint256"},{"name":"end","type":"uint256"}],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"mint","inputs":[{"name":"to","type":"address"},{"name":"amount","type":"uint256"}],"outputs":[],"stateMutability":"nonpayable"},
+  {"type":"function","name":"admin","inputs":[],"outputs":[{"name":"","type":"address"}],"stateMutability":"view"}
+]
