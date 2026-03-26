@@ -5,6 +5,7 @@ import { getPrivateKey, createAccount, createBscWalletClient } from '../wallet.j
 import { unwrapSy } from '../sdk/unwrap.js';
 import { outputJson, outputTxResult, outputSuccess } from '../output.js';
 import type { GlobalOptions } from '../types.js';
+import { maybeWithSpinner } from '../spinner.js';
 
 const unwrap = new Command('unwrap')
   .description('Unwrap SIGMASY tokens to underlying assets')
@@ -17,12 +18,14 @@ const unwrap = new Command('unwrap')
       const publicClient = createBscPublicClient();
       const walletClient = createBscWalletClient(account);
 
-      const result = await unwrapSy({
-        publicClient,
-        walletClient,
-        amount: cmdOpts.amount,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Unwrapping SY tokens...', opts.json, () =>
+        unwrapSy({
+          publicClient,
+          walletClient,
+          amount: cmdOpts.amount,
+          dryRun: opts.dryRun,
+        })
+      );
 
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful');

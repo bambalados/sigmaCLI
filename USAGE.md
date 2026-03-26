@@ -301,7 +301,7 @@ sigma trade close --position-id 7 --output USDT
 sigma trade close --position-id 7 --percent 25 --dry-run
 ```
 
-Output token options: `BNB` (default for longs), `WBNB`, `USDT`, `bnbUSD` (default for shorts), `slisBNB`.
+Output token options: `bnbUSD` (default), `BNB`, `WBNB`, `USDT`, `slisBNB`. Specify `--output BNB` if you want native BNB instead.
 
 ### `sigma trade adjust`
 
@@ -325,6 +325,136 @@ sigma trade add --position-id 7 --collateral BNB --amount 0.05
 
 # Add 20 bnbUSD to a short position
 sigma trade add --position-id 12 --collateral bnbUSD --amount 20
+```
+
+### `sigma trade set-tp`
+
+Set a take-profit price on a position. When BNB hits this price, the position auto-closes.
+
+```bash
+# Close 100% of position #155 when BNB reaches $700
+sigma trade set-tp --position-id 155 --price 700
+
+# Close only 50% at $700
+sigma trade set-tp --position-id 155 --price 700 --percent 50
+```
+
+### `sigma trade set-sl`
+
+Set a stop-loss price on a position. When BNB hits this price, the position auto-closes to limit losses.
+
+```bash
+# Close 100% of position #155 if BNB drops to $580
+sigma trade set-sl --position-id 155 --price 580
+
+# Close only 50% at $580 (keep the rest open)
+sigma trade set-sl --position-id 155 --price 580 --percent 50
+```
+
+### `sigma trade monitor`
+
+Start the price monitor. Polls the on-chain BNB oracle and auto-closes positions when TP/SL triggers are hit. When a position is closed, the monitor displays entry/exit prices, received amount, and PnL in USD and percentage terms.
+
+```bash
+# Foreground mode (Ctrl+C to stop)
+sigma trade monitor
+
+# Custom poll interval (seconds)
+sigma trade monitor --interval 10
+
+# Background mode (recommended — frees your terminal)
+sigma trade monitor --background
+```
+
+**Background mode** runs the monitor as a detached process. Use `monitor-status` and `monitor-stop` to manage it:
+
+```bash
+sigma trade monitor --background
+# ✓ Monitor started in background (PID: 12345)
+#   Log: ~/.sigma-money/monitor.log
+#   Status: sigma trade monitor-status
+#   Stop:   sigma trade monitor-stop
+```
+
+**How TP/SL triggers work:**
+
+| Position | Take-Profit | Stop-Loss |
+|----------|-------------|-----------|
+| **Long** | Fires when price >= target | Fires when price <= target |
+| **Short** | Fires when price <= target | Fires when price >= target |
+
+> **Important:** TP/SL orders only execute while `sigma trade monitor` is running. If the CLI isn't running when price crosses the target, the order will not fire. Orders are saved locally and resume on the next `sigma trade monitor` start. The CLI will warn you if you have unmonitored orders.
+
+> **High-leverage warning:** Positions with a debt ratio above 85% (typically 6-7x leverage) are at risk of being closed by the Sigma.Money protocol before your TP/SL can fire. The protocol may **redeem** high-debt-ratio positions (Liquity-style — top-tick positions are redeemed first when users redeem bnbUSD) or **rebalance** them if the debt ratio crosses 88%. The CLI warns you when setting TP/SL on such positions. If a position is closed externally, the monitor auto-cancels the associated orders after 3 failed close attempts.
+
+**Price oracle:** The monitor uses Sigma.Money's protocol oracle (`BNBPriceOracle`) — the same oracle the protocol uses for position valuation, rebalancing, and liquidations. This ensures your TP/SL triggers align with how the protocol values your position.
+
+**Changing orders:** To update a TP or SL price, simply run `set-tp` or `set-sl` again with the new price — it overwrites the existing order.
+
+### `sigma trade monitor-status`
+
+Check if the background monitor is running, view active orders and recent log output.
+
+```bash
+sigma trade monitor-status
+sigma trade monitor-status --json
+```
+
+### `sigma trade monitor-stop`
+
+Stop the background monitor process.
+
+```bash
+sigma trade monitor-stop
+```
+
+### `sigma trade list-orders`
+
+Show all active TP/SL orders.
+
+```bash
+sigma trade list-orders
+sigma trade list-orders --json
+```
+
+### `sigma trade cancel-order`
+
+Cancel an active TP/SL order.
+
+```bash
+# Cancel take-profit on position #155
+sigma trade cancel-order --position-id 155 --type tp
+
+# Cancel stop-loss
+sigma trade cancel-order --position-id 155 --type sl
+```
+
+### TP/SL Example Workflow
+
+```bash
+# 1. Open a position
+sigma trade open-long --collateral BNB --amount 0.1 --leverage 3
+# ✓ Position ID: 42
+
+# 2. Set take-profit at +2% and stop-loss at -2%
+sigma trade set-tp --position-id 42 --price 660
+sigma trade set-sl --position-id 42 --price 634
+
+# Or partial close: take 50% profit at $660, keep the rest open
+# sigma trade set-tp --position-id 42 --price 660 --percent 50
+
+# 3. Start the background monitor
+sigma trade monitor --background
+
+# 4. Check status anytime
+sigma trade monitor-status
+
+# 5. When price hits a target, the monitor auto-closes and shows PnL:
+#   SL TRIGGERED Position #42 at $633.50 — closing 100%
+#   ✓ Position #42 (LONG) closed successfully
+#   Entry: $647.00 → Exit: $633.50
+#   Received: 0.0095 BNB
+#   PnL: -$1.23 (-6.24%)
 ```
 
 ---

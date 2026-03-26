@@ -171,17 +171,20 @@ export async function getUserPositions(
 ): Promise<PositionData[]> {
   const positions: PositionData[] = [];
 
-  // First: check locally stored position IDs for this wallet (fast, accurate)
+  // First: check locally stored position IDs for this wallet, filtered by pool
   const storedEntries = getEntriesForWallet(userAddress);
-  const storedIds = new Set(storedEntries.map(e => e.positionId));
+  const poolEntries = storedEntries.filter(
+    e => e.poolAddress.toLowerCase() === poolAddr.toLowerCase(),
+  );
+  const storedIds = new Set(poolEntries.map(e => e.positionId));
 
   for (const posId of storedIds) {
     const posData = await getPositionData(publicClient, poolAddr, BigInt(posId), userAddress);
     if (posData) positions.push(posData);
   }
 
-  // Fallback: if no stored entries, scan position IDs (shows all positions, not just user's)
-  if (storedIds.size === 0) {
+  // Fallback: if no stored entries for this pool, scan position IDs (shows all positions, not just user's)
+  if (storedIds.size === 0 && poolEntries.length === 0 && storedEntries.length === 0) {
     try {
       const c = { public: publicClient };
       const pool = readIPool(poolAddr, c);

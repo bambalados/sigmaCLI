@@ -5,6 +5,7 @@ import { getPrivateKey, createAccount, createBscWalletClient } from '../../walle
 import { redeemBnbUsd } from '../../sdk/redemption.js';
 import { outputJson, outputTxResult, outputSuccess } from '../../output.js';
 import type { GlobalOptions } from '../../types.js';
+import { maybeWithSpinner } from '../../spinner.js';
 
 const redeem = new Command('redeem')
   .description('Redeem bnbUSD for underlying collateral (0.5% fee)')
@@ -18,13 +19,15 @@ const redeem = new Command('redeem')
       const publicClient = createBscPublicClient();
       const walletClient = createBscWalletClient(account);
 
-      const result = await redeemBnbUsd({
-        publicClient,
-        walletClient,
-        amount: cmdOpts.amount,
-        minCollateral: cmdOpts.minCollateral,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Redeeming bnbUSD...', opts.json, () =>
+        redeemBnbUsd({
+          publicClient,
+          walletClient,
+          amount: cmdOpts.amount,
+          minCollateral: cmdOpts.minCollateral,
+          dryRun: opts.dryRun,
+        })
+      );
 
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful - redemption would succeed');

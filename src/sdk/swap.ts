@@ -299,7 +299,7 @@ export function getValidOutputTokens(side: 'long' | 'short'): OutputToken[] {
   return ['bnbUSD', 'USDT', 'BNB', 'WBNB'];
 }
 
-/** Get the default output token for a position side */
-export function getDefaultOutputToken(side: 'long' | 'short'): OutputToken {
-  return side === 'long' ? 'BNB' : 'bnbUSD';
+/** Get the default output token — always bnbUSD unless user specifies otherwise */
+export function getDefaultOutputToken(_side: 'long' | 'short'): OutputToken {
+  return 'bnbUSD';
 }

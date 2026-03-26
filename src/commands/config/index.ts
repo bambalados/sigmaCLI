@@ -74,7 +74,8 @@ config
     if (key) {
       storePrivateKey(key);
     } else {
-      const input = await readHidden('Enter private key (hidden): ');
+      console.log('Input is hidden for security — paste your key and press Enter.');
+      const input = await readHidden('Private key: ');
       if (!input.trim()) {
         outputError('No key entered.');
         process.exit(1);
@@ -85,8 +86,8 @@ config
 
 config
   .command('set-rpc-key')
-  .description('Store NodeReal API key in Apple Keychain (macOS only)')
-  .argument('<apiKey>', 'NodeReal API key')
+  .description('Store NodeReal API key in Apple Keychain (macOS only). Pass the API key only, not the full URL. Wrap in quotes if it contains special characters.')
+  .argument('<apiKey>', 'NodeReal API key (just the key, not the full URL)')
   .action((apiKey: string) => {
     if (!isKeychainAvailable()) {
       outputError('Apple Keychain is only available on macOS. Use SIGMA_NODEREAL_KEY env var instead.');

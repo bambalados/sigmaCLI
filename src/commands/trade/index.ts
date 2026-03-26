@@ -11,10 +11,19 @@ import {
   getPositionSummary,
   listUserPositions,
 } from '../../sdk/trading.js';
-import { discoverPools, getPoolRiskParams, getPoolInfo } from '../../sdk/read.js';
-import { outputJson, outputTxResult, outputSuccess, outputKeyValue, outputTable, outputWarn } from '../../output.js';
+import { discoverPools, getPoolRiskParams, getPoolInfo, getBnbPrice, getPositionData } from '../../sdk/read.js';
+import { outputJson, outputTxResult, outputSuccess, outputKeyValue, outputTable, outputWarn, outputError } from '../../output.js';
 import type { GlobalOptions, CollateralType } from '../../types.js';
 import type { OutputToken } from '../../sdk/swap.js';
+import { maybeWithSpinner } from '../../spinner.js';
+import { saveOrder, getOrdersForWallet, removeOrder } from '../../order-store.js';
+import { getEntry } from '../../position-store.js';
+import { startMonitor, isMonitorRunning, type CloseResult } from '../../sdk/monitor.js';
+import { spawn } from 'child_process';
+import { readFileSync, existsSync, openSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
+import pc from 'picocolors';
 
 const trade = new Command('trade').description('Open, close, and manage leveraged positions');
 
@@ -37,14 +46,16 @@ trade
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await openLongPosition({
-        publicClient,
-        walletClient,
-        collateral: cmdOpts.collateral as CollateralType,
-        amount: cmdOpts.amount,
-        leverage: parseFloat(cmdOpts.leverage),
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Opening long position...', opts.json, () =>
+        openLongPosition({
+          publicClient,
+          walletClient,
+          collateral: cmdOpts.collateral as CollateralType,
+          amount: cmdOpts.amount,
+          leverage: parseFloat(cmdOpts.leverage),
+          dryRun: opts.dryRun,
+        })
+      );
 
       if (opts.json) {
         outputJson(result);
@@ -70,14 +81,16 @@ trade
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await openShortPosition({
-        publicClient,
-        walletClient,
-        collateral: cmdOpts.collateral as CollateralType,
-        amount: cmdOpts.amount,
-        leverage: parseFloat(cmdOpts.leverage),
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Opening short position...', opts.json, () =>
+        openShortPosition({
+          publicClient,
+          walletClient,
+          collateral: cmdOpts.collateral as CollateralType,
+          amount: cmdOpts.amount,
+          leverage: parseFloat(cmdOpts.leverage),
+          dryRun: opts.dryRun,
+        })
+      );
 
       if (opts.json) {
         outputJson(result);
@@ -98,19 +111,21 @@ trade
   .description('Close a position (fully or partially)')
   .requiredOption('--position-id <id>', 'Position NFT ID')
   .option('--percent <n>', 'Percent to close (1-100)', '100')
-  .option('--output <token>', 'Output token: BNB, WBNB, USDT, bnbUSD, slisBNB (default: BNB for longs, bnbUSD for shorts)')
+  .option('--output <token>', 'Output token: BNB, WBNB, USDT, bnbUSD, slisBNB (default: bnbUSD)')
   .action(async (cmdOpts) => {
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await closePosition({
-        publicClient,
-        walletClient,
-        positionId: parseInt(cmdOpts.positionId),
-        percent: parseInt(cmdOpts.percent),
-        outputToken: cmdOpts.output as OutputToken | undefined,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Closing position...', opts.json, () =>
+        closePosition({
+          publicClient,
+          walletClient,
+          positionId: parseInt(cmdOpts.positionId),
+          percent: parseInt(cmdOpts.percent),
+          outputToken: cmdOpts.output as OutputToken | undefined,
+          dryRun: opts.dryRun,
+        })
+      );
 
       if (opts.json) {
         outputJson(result);
@@ -136,13 +151,15 @@ trade
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await adjustLeverage({
-        publicClient,
-        walletClient,
-        positionId: parseInt(cmdOpts.positionId),
-        newLeverage: parseFloat(cmdOpts.leverage),
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Adjusting leverage...', opts.json, () =>
+        adjustLeverage({
+          publicClient,
+          walletClient,
+          positionId: parseInt(cmdOpts.positionId),
+          newLeverage: parseFloat(cmdOpts.leverage),
+          dryRun: opts.dryRun,
+        })
+      );
 
       if (opts.json) {
         outputJson(result);
@@ -166,14 +183,16 @@ trade
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await addToPosition({
-        publicClient,
-        walletClient,
-        positionId: parseInt(cmdOpts.positionId),
-        collateral: cmdOpts.collateral as CollateralType,
-        amount: cmdOpts.amount,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Adding collateral...', opts.json, () =>
+        addToPosition({
+          publicClient,
+          walletClient,
+          positionId: parseInt(cmdOpts.positionId),
+          collateral: cmdOpts.collateral as CollateralType,
+          amount: cmdOpts.amount,
+          dryRun: opts.dryRun,
+        })
+      );
 
       if (opts.json) {
         outputJson(result);
@@ -302,6 +321,397 @@ trade
             'Positions': info.nextPositionId.toString(),
           });
         }
+      }
+    } catch (e) {
+      handleError(e, opts.json);
+    }
+  });
+
+// ── TP/SL Commands ──
+
+trade
+  .command('set-tp')
+  .description('Set take-profit price for a position')
+  .requiredOption('--position-id <id>', 'Position NFT ID')
+  .requiredOption('--price <price>', 'Trigger price in USD')
+  .option('--percent <n>', 'Percent to close when triggered (1-100)', '100')
+  .action(async (cmdOpts) => {
+    const opts = program.opts<GlobalOptions>();
+    try {
+      const walletAddr = getWalletAddress(opts.privateKey);
+      const entry = getEntry(walletAddr, parseInt(cmdOpts.positionId));
+      if (!entry) {
+        outputError(`Position #${cmdOpts.positionId} not found in local store. Open positions are tracked automatically.`);
+        process.exit(1);
+      }
+
+      const publicClient = createBscPublicClient();
+      const { formatted } = await getBnbPrice(publicClient);
+      const currentPrice = parseFloat(formatted);
+      const triggerPrice = parseFloat(cmdOpts.price);
+
+      // Warn if price seems wrong direction
+      if (entry.side === 'long' && triggerPrice < currentPrice) {
+        outputWarn(`Take-profit price ($${cmdOpts.price}) is below current BNB price ($${currentPrice.toFixed(2)}). Are you sure?`);
+      } else if (entry.side === 'short' && triggerPrice > currentPrice) {
+        outputWarn(`Take-profit price ($${cmdOpts.price}) is above current BNB price ($${currentPrice.toFixed(2)}). Are you sure?`);
+      }
+
+      // Warn if position is at high debt ratio (vulnerable to redemption/rebalance)
+      const posData = await getPositionData(publicClient, entry.poolAddress as `0x${string}`, BigInt(cmdOpts.positionId), walletAddr);
+      if (posData) {
+        const debtRatioPct = parseFloat(posData.debtRatio);
+        if (debtRatioPct >= 85) {
+          outputWarn(`Debt ratio is ${posData.debtRatio} (max: 86.67%, rebalance: 88%).`);
+          outputWarn(`High-leverage positions near the top tick are vulnerable to protocol redemptions — your position may be closed before TP/SL can fire.`);
+        }
+      }
+
+      saveOrder({
+        positionId: parseInt(cmdOpts.positionId),
+        walletAddress: walletAddr,
+        side: entry.side,
+        type: 'take-profit',
+        triggerPrice: cmdOpts.price,
+        percent: parseInt(cmdOpts.percent),
+        createdAt: new Date().toISOString(),
+      });
+
+      if (opts.json) {
+        outputJson({ positionId: cmdOpts.positionId, type: 'take-profit', price: cmdOpts.price, percent: cmdOpts.percent });
+      } else {
+        outputSuccess(`Take-profit set for position #${cmdOpts.positionId} at $${cmdOpts.price} (${cmdOpts.percent}% close)`);
+        console.log(pc.dim('  Run `sigma trade monitor` to activate price monitoring.'));
+      }
+    } catch (e) {
+      handleError(e, opts.json);
+    }
+  });
+
+trade
+  .command('set-sl')
+  .description('Set stop-loss price for a position')
+  .requiredOption('--position-id <id>', 'Position NFT ID')
+  .requiredOption('--price <price>', 'Trigger price in USD')
+  .option('--percent <n>', 'Percent to close when triggered (1-100)', '100')
+  .action(async (cmdOpts) => {
+    const opts = program.opts<GlobalOptions>();
+    try {
+      const walletAddr = getWalletAddress(opts.privateKey);
+      const entry = getEntry(walletAddr, parseInt(cmdOpts.positionId));
+      if (!entry) {
+        outputError(`Position #${cmdOpts.positionId} not found in local store. Open positions are tracked automatically.`);
+        process.exit(1);
+      }
+
+      const publicClient = createBscPublicClient();
+      const { formatted } = await getBnbPrice(publicClient);
+      const currentPrice = parseFloat(formatted);
+      const triggerPrice = parseFloat(cmdOpts.price);
+
+      if (entry.side === 'long' && triggerPrice > currentPrice) {
+        outputWarn(`Stop-loss price ($${cmdOpts.price}) is above current BNB price ($${currentPrice.toFixed(2)}). Are you sure?`);
+      } else if (entry.side === 'short' && triggerPrice < currentPrice) {
+        outputWarn(`Stop-loss price ($${cmdOpts.price}) is below current BNB price ($${currentPrice.toFixed(2)}). Are you sure?`);
+      }
+
+      // Warn if position is at high debt ratio (vulnerable to redemption/rebalance)
+      const posData = await getPositionData(publicClient, entry.poolAddress as `0x${string}`, BigInt(cmdOpts.positionId), walletAddr);
+      if (posData) {
+        const debtRatioPct = parseFloat(posData.debtRatio);
+        if (debtRatioPct >= 85) {
+          outputWarn(`Debt ratio is ${posData.debtRatio} (max: 86.67%, rebalance: 88%).`);
+          outputWarn(`High-leverage positions near the top tick are vulnerable to protocol redemptions — your position may be closed before TP/SL can fire.`);
+        }
+      }
+
+      saveOrder({
+        positionId: parseInt(cmdOpts.positionId),
+        walletAddress: walletAddr,
+        side: entry.side,
+        type: 'stop-loss',
+        triggerPrice: cmdOpts.price,
+        percent: parseInt(cmdOpts.percent),
+        createdAt: new Date().toISOString(),
+      });
+
+      if (opts.json) {
+        outputJson({ positionId: cmdOpts.positionId, type: 'stop-loss', price: cmdOpts.price, percent: cmdOpts.percent });
+      } else {
+        outputSuccess(`Stop-loss set for position #${cmdOpts.positionId} at $${cmdOpts.price} (${cmdOpts.percent}% close)`);
+        console.log(pc.dim('  Run `sigma trade monitor` to activate price monitoring.'));
+      }
+    } catch (e) {
+      handleError(e, opts.json);
+    }
+  });
+
+trade
+  .command('list-orders')
+  .description('Show all active TP/SL orders')
+  .action(async () => {
+    const opts = program.opts<GlobalOptions>();
+    try {
+      const walletAddr = getWalletAddress(opts.privateKey);
+      const orders = getOrdersForWallet(walletAddr);
+
+      if (opts.json) {
+        outputJson(orders);
+      } else if (orders.length === 0) {
+        outputWarn('No active TP/SL orders');
+      } else {
+        outputTable(
+          ['Position', 'Side', 'Type', 'Trigger Price', 'Close %', 'Created'],
+          orders.map((o) => [
+            o.positionId.toString(),
+            o.side.toUpperCase(),
+            o.type === 'take-profit' ? 'TP' : 'SL',
+            '$' + o.triggerPrice,
+            o.percent + '%',
+            new Date(o.createdAt).toLocaleDateString(),
+          ]),
+        );
+      }
+    } catch (e) {
+      handleError(e, opts.json);
+    }
+  });
+
+trade
+  .command('cancel-order')
+  .description('Cancel a TP/SL order')
+  .requiredOption('--position-id <id>', 'Position NFT ID')
+  .requiredOption('--type <type>', 'Order type: tp or sl')
+  .action(async (cmdOpts) => {
+    const opts = program.opts<GlobalOptions>();
+    try {
+      const walletAddr = getWalletAddress(opts.privateKey);
+      const orderType = cmdOpts.type === 'tp' ? 'take-profit' : 'stop-loss';
+      const removed = removeOrder(walletAddr, parseInt(cmdOpts.positionId), orderType);
+
+      if (opts.json) {
+        outputJson({ cancelled: removed, positionId: cmdOpts.positionId, type: orderType });
+      } else if (removed) {
+        outputSuccess(`Cancelled ${orderType} order for position #${cmdOpts.positionId}`);
+      } else {
+        outputWarn(`No ${orderType} order found for position #${cmdOpts.positionId}`);
+      }
+    } catch (e) {
+      handleError(e, opts.json);
+    }
+  });
+
+trade
+  .command('monitor')
+  .description(
+    'Poll BNB price and auto-close positions when TP/SL targets are hit.\n' +
+    'Set targets first with `sigma trade set-tp` and `sigma trade set-sl`.\n' +
+    'Orders only execute while this process is running. Press Ctrl+C to stop.'
+  )
+  .option('--interval <seconds>', 'Poll interval in seconds', '30')
+  .option('--background', 'Run monitor as a background process')
+  .action(async (cmdOpts) => {
+    const opts = program.opts<GlobalOptions>();
+    try {
+      // Background mode: spawn a detached child process
+      if (cmdOpts.background) {
+        if (isMonitorRunning()) {
+          outputWarn('Monitor is already running. Use `sigma trade monitor-status` to check.');
+          return;
+        }
+
+        const storeDir = join(homedir(), '.sigma-money');
+        if (!existsSync(storeDir)) mkdirSync(storeDir, { recursive: true });
+        const logPath = join(storeDir, 'monitor.log');
+        const args = [process.argv[1], 'trade', 'monitor', '--interval', cmdOpts.interval];
+        if (opts.privateKey) args.push('--private-key', opts.privateKey);
+        if (opts.rpc) args.push('--rpc', opts.rpc);
+
+        // Open log file as fd so child writes directly — no pipes keeping parent alive
+        const logFd = openSync(logPath, 'a');
+        const child = spawn(process.execPath, args, {
+          detached: true,
+          stdio: ['ignore', logFd, logFd],
+        });
+        child.unref();
+
+        outputSuccess(`Monitor started in background (PID: ${child.pid})`);
+        console.log(pc.dim(`  Log: ${logPath}`));
+        console.log(pc.dim(`  Status: sigma trade monitor-status`));
+        console.log(pc.dim(`  Stop:   sigma trade monitor-stop`));
+        return;
+      }
+
+      const { publicClient, walletClient } = getWallet(opts);
+      const walletAddr = walletClient.account!.address;
+      const orders = getOrdersForWallet(walletAddr);
+
+      if (orders.length === 0) {
+        outputWarn('No active TP/SL orders. Set orders first with `sigma trade set-tp` or `sigma trade set-sl`.');
+        return;
+      }
+
+      // Show active orders
+      console.log(pc.bold('\n  Active Orders:\n'));
+      outputTable(
+        ['Position', 'Side', 'Type', 'Trigger Price', 'Close %'],
+        orders.map((o) => [
+          o.positionId.toString(),
+          o.side.toUpperCase(),
+          o.type === 'take-profit' ? 'TP' : 'SL',
+          '$' + o.triggerPrice,
+          o.percent + '%',
+        ]),
+      );
+
+      const intervalMs = parseInt(cmdOpts.interval) * 1000;
+      console.log(pc.yellow(`\n  ⚠ Orders only execute while this process is running.`));
+      console.log(pc.dim(`  Polling every ${cmdOpts.interval}s. Press Ctrl+C to stop.\n`));
+
+      const ac = new AbortController();
+      process.on('SIGINT', () => {
+        ac.abort();
+        console.log(pc.dim('\n\n  Monitor stopped. Orders are saved and will resume on next `sigma trade monitor`.'));
+        process.exit(0);
+      });
+
+      startMonitor({
+        publicClient,
+        walletClient,
+        intervalMs,
+        signal: ac.signal,
+        callbacks: {
+          onTick: (price, count) => {
+            process.stdout.write(`\r  ${pc.dim('BNB:')} ${pc.bold('$' + parseFloat(price).toFixed(2))} ${pc.dim('|')} ${pc.bold(String(count))} ${pc.dim('orders')} ${pc.dim('|')} ${pc.dim(new Date().toLocaleTimeString())}  `);
+          },
+          onTrigger: (order, price) => {
+            const label = order.type === 'take-profit' ? pc.green('TP TRIGGERED') : pc.red('SL TRIGGERED');
+            console.log(`\n  ${label} Position #${order.positionId} at $${parseFloat(price).toFixed(2)} — closing ${order.percent}%`);
+          },
+          onClose: (result) => {
+            const side = result.order.side.toUpperCase();
+            let pnlLine = '';
+            if (result.pnlUsd && result.pnlPercent) {
+              const pnlColor = result.pnlUsd.startsWith('+') ? pc.green : pc.red;
+              pnlLine = `  ${pc.dim('PnL:')} ${pnlColor(result.pnlUsd)} ${pnlColor(`(${result.pnlPercent})`)}`;
+            }
+            const outputLine = result.outputAmount && result.outputTokenName
+              ? `  ${pc.dim('Received:')} ${pc.bold(result.outputAmount + ' ' + result.outputTokenName)}`
+              : '';
+            const entryLine = result.entryPrice
+              ? `  ${pc.dim('Entry:')} $${parseFloat(result.entryPrice.replace('$', '')).toFixed(2)} ${pc.dim('→ Exit:')} $${parseFloat(result.exitPrice).toFixed(2)}`
+              : '';
+            console.log(`  ${pc.green('✓')} Position #${result.order.positionId} (${side}) closed successfully`);
+            if (entryLine) console.log(entryLine);
+            if (outputLine) console.log(outputLine);
+            if (pnlLine) console.log(pnlLine);
+            console.log();
+          },
+          onError: (order, error) => {
+            console.log(`\n  ${pc.red('✗')} Failed to close position #${order.positionId}: ${error}`);
+          },
+          onAutoCancel: (order, reason) => {
+            console.log(`\n  ${pc.yellow('⚠')} Auto-cancelled TP/SL orders for position #${order.positionId}`);
+            console.log(`  ${pc.dim(reason)}`);
+          },
+          onPriceError: (error) => {
+            console.log(`\n  ${pc.yellow('⚠')} Price feed error: ${error}`);
+          },
+        },
+      });
+    } catch (e) {
+      handleError(e, opts.json);
+    }
+  });
+
+trade
+  .command('monitor-status')
+  .description('Check if the background monitor is running')
+  .action(async () => {
+    const opts = program.opts<GlobalOptions>();
+    try {
+      const pidPath = join(homedir(), '.sigma-money', 'monitor.pid');
+      const logPath = join(homedir(), '.sigma-money', 'monitor.log');
+      const running = isMonitorRunning();
+
+      if (opts.json) {
+        const pid = running && existsSync(pidPath) ? parseInt(readFileSync(pidPath, 'utf-8').trim(), 10) : null;
+        const walletAddr = (() => { try { return getWalletAddress(opts.privateKey); } catch { return null; } })();
+        const orders = walletAddr ? getOrdersForWallet(walletAddr) : [];
+        outputJson({ running, pid, orders: orders.length });
+        return;
+      }
+
+      if (running) {
+        const pid = readFileSync(pidPath, 'utf-8').trim();
+        outputSuccess(`Monitor is running (PID: ${pid})`);
+        console.log(pc.dim(`  Log: ${logPath}`));
+        console.log(pc.dim(`  Stop: sigma trade monitor-stop`));
+      } else {
+        outputWarn('Monitor is not running.');
+        console.log(pc.dim('  Start: sigma trade monitor --background'));
+      }
+
+      // Show orders if wallet available
+      try {
+        const walletAddr = getWalletAddress(opts.privateKey);
+        const orders = getOrdersForWallet(walletAddr);
+        if (orders.length > 0) {
+          console.log(pc.bold(`\n  Active Orders: ${orders.length}`));
+          outputTable(
+            ['Position', 'Side', 'Type', 'Trigger Price', 'Close %'],
+            orders.map((o) => [
+              o.positionId.toString(),
+              o.side.toUpperCase(),
+              o.type === 'take-profit' ? 'TP' : 'SL',
+              '$' + o.triggerPrice,
+              o.percent + '%',
+            ]),
+          );
+        }
+      } catch {}
+
+      // Show last few log lines
+      if (existsSync(logPath)) {
+        try {
+          const log = readFileSync(logPath, 'utf-8');
+          const lines = log.trim().split('\n').filter(l => l.trim());
+          const last = lines.slice(-3).join('\n');
+          if (last) {
+            console.log(pc.dim('\n  Recent log:'));
+            console.log(pc.dim('  ' + last.replace(/\r/g, '').split('\n').join('\n  ')));
+          }
+        } catch {}
+      }
+    } catch (e) {
+      handleError(e, opts.json);
+    }
+  });
+
+trade
+  .command('monitor-stop')
+  .description('Stop the background monitor')
+  .action(async () => {
+    const opts = program.opts<GlobalOptions>();
+    try {
+      const pidPath = join(homedir(), '.sigma-money', 'monitor.pid');
+
+      if (!isMonitorRunning()) {
+        if (opts.json) {
+          outputJson({ stopped: false, reason: 'not running' });
+        } else {
+          outputWarn('Monitor is not running.');
+        }
+        return;
+      }
+
+      const pid = parseInt(readFileSync(pidPath, 'utf-8').trim(), 10);
+      process.kill(pid, 'SIGTERM');
+
+      if (opts.json) {
+        outputJson({ stopped: true, pid });
+      } else {
+        outputSuccess(`Monitor stopped (PID: ${pid})`);
       }
     } catch (e) {
       handleError(e, opts.json);
