@@ -50,6 +50,10 @@ Key contract details:
 - In-flight tracking prevents double-trigger on same position
 - Orders at `~/.sigma-money/orders.json`, positions at `~/.sigma-money/positions.json`
 - Both long and short positions supported
+- Auto-cancel stale orders after 3 consecutive "position not found" failures
+- High-leverage warning (>=85% debt ratio) on set-tp/set-sl — redemption/rebalance risk
+- Default output token is bnbUSD for all position closes (user specifies --output for BNB/WBNB/USDT)
+- Position list filtered by pool to show only wallet-owned positions
 - 71 commands across 11 groups (up from 64 in V1.0)
 
 ## Key Files
@@ -76,9 +80,12 @@ Key contract details:
 | src/spinner.ts | ora spinner wrappers (withSpinner, maybeWithSpinner) |
 | src/wizard.ts | First-run setup wizard |
 
-## Known Issues (V1.0)
+## Known Issues
 
 1. LP token order: bnbUSD-USDT pool expects [USDT, bnbUSD] not [bnbUSD, USDT]
 2. xsigma rebase: reverts when no rebase available — could add pre-check
 3. redeem/keeper: revert when protocol conditions not met — could add pre-checks
 4. SP3 exchange rate: ~21:1 share/token ratio confuses users
+5. High-leverage positions (>=85% debt ratio) are vulnerable to protocol redemptions before TP/SL can fire — warn users but can't prevent
+6. Monitor process doesn't survive system reboot — user must restart `sigma trade monitor --background`
+7. Incomplete long close leaves SY tokens unredeemed if the conversion pipeline fails mid-way (operate succeeds but SY redeem/swap fails)
