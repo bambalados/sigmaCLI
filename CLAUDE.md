@@ -89,3 +89,17 @@ Key contract details:
 5. High-leverage positions (>=85% debt ratio) are vulnerable to protocol redemptions before TP/SL can fire — warn users but can't prevent
 6. Monitor process doesn't survive system reboot — user must restart `sigma trade monitor --background`
 7. Incomplete long close leaves SY tokens unredeemed if the conversion pipeline fails mid-way (operate succeeds but SY redeem/swap fails)
+
+## Release Checklist
+
+Before submitting a release PR, follow [GOVERNANCE.md](GOVERNANCE.md) and ensure:
+
+1. **Version bumped** in `package.json`, `src/cli.ts`, and `src/banner.ts`
+2. **All docs updated** — every user-facing change must be reflected in:
+   - `CHANGELOG.md` — full list of added/changed/fixed items
+   - `README.md` — features list, command reference table, quick start examples
+   - `USAGE.md` — detailed command docs with examples for every new/changed command
+   - `CLAUDE.md` — version status, new key files, known issues
+   - `CONTRIBUTING.md` — if development setup or patterns changed
+3. **PR process** — follow GOVERNANCE.md: branch from main, clear description, confirm live testing on BSC mainnet, pass `npm run lint && npm run build`
+4. **GitHub release** — after merge, create a tagged release via `gh release create vX.Y.Z`
