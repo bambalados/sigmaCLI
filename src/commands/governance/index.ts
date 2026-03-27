@@ -15,6 +15,7 @@ import {
 } from '../../sdk/governance.js';
 import { outputJson, outputTxResult, outputSuccess, outputTable, outputWarn, outputKeyValue } from '../../output.js';
 import type { GlobalOptions } from '../../types.js';
+import { maybeWithSpinner } from '../../spinner.js';
 
 const governance = new Command('governance')
   .alias('gov')
@@ -110,13 +111,15 @@ governance
         poolAddrs.push(pool);
       }
 
-      const result = await castVote({
-        publicClient,
-        walletClient,
-        pools: poolAddrs,
-        weights,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Casting vote...', opts.json, () =>
+        castVote({
+          publicClient,
+          walletClient,
+          pools: poolAddrs,
+          weights,
+          dryRun: opts.dryRun,
+        })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess(`Dry run successful — would vote on ${gaugeAddrs.length} gauge(s)`);
       else outputTxResult(result.hash, result.explorerUrl);
@@ -132,7 +135,9 @@ governance
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await resetVote({ publicClient, walletClient, dryRun: opts.dryRun });
+      const result = await maybeWithSpinner('Resetting votes...', opts.json, () =>
+        resetVote({ publicClient, walletClient, dryRun: opts.dryRun })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful — votes would be reset');
       else outputTxResult(result.hash, result.explorerUrl);
@@ -148,7 +153,9 @@ governance
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await pokeVote({ publicClient, walletClient, dryRun: opts.dryRun });
+      const result = await maybeWithSpinner('Refreshing votes...', opts.json, () =>
+        pokeVote({ publicClient, walletClient, dryRun: opts.dryRun })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful — votes would be poked');
       else outputTxResult(result.hash, result.explorerUrl);
@@ -164,7 +171,9 @@ governance
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await claimRebase({ publicClient, walletClient, dryRun: opts.dryRun });
+      const result = await maybeWithSpinner('Claiming rebase...', opts.json, () =>
+        claimRebase({ publicClient, walletClient, dryRun: opts.dryRun })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful — rebase would be claimed');
       else outputTxResult(result.hash, result.explorerUrl);
@@ -185,12 +194,14 @@ governance
         ? (cmdOpts.gauge as string[]).map((g) => g as `0x${string}`)
         : undefined;
 
-      const result = await claimIncentives({
-        publicClient,
-        walletClient,
-        gaugeAddresses: gaugeAddrs,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Claiming incentives...', opts.json, () =>
+        claimIncentives({
+          publicClient,
+          walletClient,
+          gaugeAddresses: gaugeAddrs,
+          dryRun: opts.dryRun,
+        })
+      );
       if (opts.json) outputJson(result);
       else if (result.explorerUrl === 'No incentives to claim') outputWarn('No incentives to claim');
       else if (opts.dryRun) outputSuccess('Dry run successful — incentives would be claimed');
@@ -211,15 +222,17 @@ governance
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await depositIncentive({
-        publicClient,
-        walletClient,
-        gaugeAddress: cmdOpts.gauge as `0x${string}`,
-        tokenAddress: cmdOpts.token as `0x${string}`,
-        amount: cmdOpts.amount,
-        decimals: parseInt(cmdOpts.decimals),
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Depositing incentive...', opts.json, () =>
+        depositIncentive({
+          publicClient,
+          walletClient,
+          gaugeAddress: cmdOpts.gauge as `0x${string}`,
+          tokenAddress: cmdOpts.token as `0x${string}`,
+          amount: cmdOpts.amount,
+          decimals: parseInt(cmdOpts.decimals),
+          dryRun: opts.dryRun,
+        })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful — incentive would be deposited');
       else outputTxResult(result.hash, result.explorerUrl);

@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-03-25
+
+### Added
+
+- **ASCII art banner**: Sigma logo with gradient colors on startup and `--help`
+- **First-run setup wizard**: Interactive wallet (Keychain/env/.env) and RPC setup on first launch with connectivity test
+- **Spinners**: All 33 write commands show ora spinners during transactions (hidden in `--json` mode)
+- **Take-Profit / Stop-Loss**: Set TP/SL price targets on any tracked position
+  - `sigma trade set-tp --position-id <id> --price <n>` — set take-profit
+  - `sigma trade set-sl --position-id <id> --price <n>` — set stop-loss
+  - `sigma trade monitor` — foreground price monitor with live status line
+  - `sigma trade monitor --background` — background monitor (detached process)
+  - `sigma trade monitor-status` — check monitor PID, active orders, recent log
+  - `sigma trade monitor-stop` — stop the background monitor
+  - `sigma trade list-orders` — view all active TP/SL orders
+  - `sigma trade cancel-order --position-id <id> --type <tp|sl>` — cancel an order
+- **PnL on close**: Monitor displays entry/exit price, received amount, PnL in USD and % when a TP/SL triggers
+- **Startup warning**: Alerts when active TP/SL orders exist but monitor isn't running (checks PID lock file)
+- **Order persistence**: Orders saved at `~/.sigma-money/orders.json`, survive CLI restarts
+- 7 new commands (71 total, up from 64 in V1.0)
+
+### Fixed
+
+- First-run wizard readline broken after hidden key input (raw mode conflict)
+- Hidden key input now shows explanatory hint ("Input is hidden for security")
+- `config set-rpc-key` help clarifies: pass API key only, not full URL, wrap in quotes
+
 ## [1.0.0] - 2026-03-23
 
 ### Added

@@ -14,6 +14,7 @@ import {
 import { getPoolStats } from '../../sdk/read.js';
 import { outputJson, outputTxResult, outputSuccess, outputTable, outputWarn } from '../../output.js';
 import type { GlobalOptions, PoolName } from '../../types.js';
+import { maybeWithSpinner } from '../../spinner.js';
 
 const pool = new Command('pool').description('Stability pool deposit, withdraw, and stats');
 
@@ -36,14 +37,16 @@ pool
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await deposit({
-        publicClient,
-        walletClient,
-        pool: cmdOpts.pool as PoolName,
-        token: cmdOpts.token as 'bnbUSD' | 'USDT',
-        amount: cmdOpts.amount,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Depositing into stability pool...', opts.json, () =>
+        deposit({
+          publicClient,
+          walletClient,
+          pool: cmdOpts.pool as PoolName,
+          token: cmdOpts.token as 'bnbUSD' | 'USDT',
+          amount: cmdOpts.amount,
+          dryRun: opts.dryRun,
+        })
+      );
 
       if (opts.json) {
         outputJson(result);
@@ -69,21 +72,23 @@ pool
       const { publicClient, walletClient } = getWallet(opts);
       const poolName = cmdOpts.pool as PoolName;
 
-      const result = cmdOpts.instant
-        ? await instantWithdraw({
-            publicClient,
-            walletClient,
-            pool: poolName,
-            amount: cmdOpts.amount,
-            dryRun: opts.dryRun,
-          })
-        : await requestWithdraw({
-            publicClient,
-            walletClient,
-            pool: poolName,
-            amount: cmdOpts.amount,
-            dryRun: opts.dryRun,
-          });
+      const result = await maybeWithSpinner('Processing withdrawal...', opts.json, () =>
+        cmdOpts.instant
+          ? instantWithdraw({
+              publicClient,
+              walletClient,
+              pool: poolName,
+              amount: cmdOpts.amount,
+              dryRun: opts.dryRun,
+            })
+          : requestWithdraw({
+              publicClient,
+              walletClient,
+              pool: poolName,
+              amount: cmdOpts.amount,
+              dryRun: opts.dryRun,
+            })
+      );
 
       if (opts.json) {
         outputJson(result);
@@ -109,13 +114,15 @@ pool
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await claimWithdrawal({
-        publicClient,
-        walletClient,
-        pool: cmdOpts.pool as PoolName,
-        shares: cmdOpts.shares,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Claiming withdrawal...', opts.json, () =>
+        claimWithdrawal({
+          publicClient,
+          walletClient,
+          pool: cmdOpts.pool as PoolName,
+          shares: cmdOpts.shares,
+          dryRun: opts.dryRun,
+        })
+      );
 
       if (opts.json) {
         outputJson(result);
@@ -161,13 +168,15 @@ pool
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await stakeSpShares({
-        publicClient,
-        walletClient,
-        pool: cmdOpts.pool as PoolName,
-        amount: cmdOpts.amount,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Staking SP shares...', opts.json, () =>
+        stakeSpShares({
+          publicClient,
+          walletClient,
+          pool: cmdOpts.pool as PoolName,
+          amount: cmdOpts.amount,
+          dryRun: opts.dryRun,
+        })
+      );
 
       if (opts.json) {
         outputJson(result);
@@ -190,13 +199,15 @@ pool
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await unstakeSpShares({
-        publicClient,
-        walletClient,
-        pool: cmdOpts.pool as PoolName,
-        amount: cmdOpts.amount,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Unstaking SP shares...', opts.json, () =>
+        unstakeSpShares({
+          publicClient,
+          walletClient,
+          pool: cmdOpts.pool as PoolName,
+          amount: cmdOpts.amount,
+          dryRun: opts.dryRun,
+        })
+      );
 
       if (opts.json) {
         outputJson(result);
@@ -218,12 +229,14 @@ pool
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await claimSpRewards({
-        publicClient,
-        walletClient,
-        pool: cmdOpts.pool as PoolName,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Claiming rewards...', opts.json, () =>
+        claimSpRewards({
+          publicClient,
+          walletClient,
+          pool: cmdOpts.pool as PoolName,
+          dryRun: opts.dryRun,
+        })
+      );
 
       if (opts.json) {
         outputJson(result);

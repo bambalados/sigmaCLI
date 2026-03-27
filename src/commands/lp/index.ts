@@ -5,6 +5,7 @@ import { getPrivateKey, createAccount, createBscWalletClient } from '../../walle
 import { addLiquidity, removeLiquidity, stakeLp, unstakeLp } from '../../sdk/curve-lp.js';
 import { outputJson, outputTxResult, outputSuccess } from '../../output.js';
 import type { GlobalOptions, LpPoolName } from '../../types.js';
+import { maybeWithSpinner } from '../../spinner.js';
 
 const lp = new Command('lp').description('Curve LP provisioning and gauge staking');
 
@@ -29,13 +30,15 @@ lp
       const amounts = cmdOpts.amounts.split(',') as [string, string];
       if (amounts.length !== 2) throw new Error('Provide exactly 2 comma-separated amounts');
 
-      const result = await addLiquidity({
-        publicClient,
-        walletClient,
-        pool: cmdOpts.pool as LpPoolName,
-        amounts,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Adding liquidity...', opts.json, () =>
+        addLiquidity({
+          publicClient,
+          walletClient,
+          pool: cmdOpts.pool as LpPoolName,
+          amounts,
+          dryRun: opts.dryRun,
+        })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful');
       else outputTxResult(result.hash, result.explorerUrl);
@@ -53,13 +56,15 @@ lp
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await removeLiquidity({
-        publicClient,
-        walletClient,
-        pool: cmdOpts.pool as LpPoolName,
-        amount: cmdOpts.amount,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Removing liquidity...', opts.json, () =>
+        removeLiquidity({
+          publicClient,
+          walletClient,
+          pool: cmdOpts.pool as LpPoolName,
+          amount: cmdOpts.amount,
+          dryRun: opts.dryRun,
+        })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful');
       else outputTxResult(result.hash, result.explorerUrl);
@@ -77,13 +82,15 @@ lp
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await stakeLp({
-        publicClient,
-        walletClient,
-        pool: cmdOpts.pool as LpPoolName,
-        amount: cmdOpts.amount,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Staking LP tokens...', opts.json, () =>
+        stakeLp({
+          publicClient,
+          walletClient,
+          pool: cmdOpts.pool as LpPoolName,
+          amount: cmdOpts.amount,
+          dryRun: opts.dryRun,
+        })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful');
       else outputTxResult(result.hash, result.explorerUrl);
@@ -101,13 +108,15 @@ lp
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await unstakeLp({
-        publicClient,
-        walletClient,
-        pool: cmdOpts.pool as LpPoolName,
-        amount: cmdOpts.amount,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Unstaking LP tokens...', opts.json, () =>
+        unstakeLp({
+          publicClient,
+          walletClient,
+          pool: cmdOpts.pool as LpPoolName,
+          amount: cmdOpts.amount,
+          dryRun: opts.dryRun,
+        })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful');
       else outputTxResult(result.hash, result.explorerUrl);

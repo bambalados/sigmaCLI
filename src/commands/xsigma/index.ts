@@ -15,6 +15,7 @@ import {
 } from '../../sdk/xsigma.js';
 import { outputJson, outputTxResult, outputSuccess, outputKeyValue, outputTable, outputWarn } from '../../output.js';
 import type { GlobalOptions } from '../../types.js';
+import { maybeWithSpinner } from '../../spinner.js';
 
 const xsigma = new Command('xsigma').description('xSIGMA vesting, exit, and rebase');
 
@@ -110,12 +111,14 @@ xsigma
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await convertToXSigma({
-        publicClient,
-        walletClient,
-        amount: cmdOpts.amount,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Converting SIGMA to xSIGMA...', opts.json, () =>
+        convertToXSigma({
+          publicClient,
+          walletClient,
+          amount: cmdOpts.amount,
+          dryRun: opts.dryRun,
+        })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful — convert would succeed');
       else outputTxResult(result.hash, result.explorerUrl);
@@ -132,12 +135,14 @@ xsigma
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await instantExit({
-        publicClient,
-        walletClient,
-        amount: cmdOpts.amount,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Exiting xSIGMA...', opts.json, () =>
+        instantExit({
+          publicClient,
+          walletClient,
+          amount: cmdOpts.amount,
+          dryRun: opts.dryRun,
+        })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) {
         outputSuccess(`Dry run successful — would receive ${result.exitedAmount} SIGMA after penalty`);
@@ -157,12 +162,14 @@ xsigma
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await createVest({
-        publicClient,
-        walletClient,
-        amount: cmdOpts.amount,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Creating vest...', opts.json, () =>
+        createVest({
+          publicClient,
+          walletClient,
+          amount: cmdOpts.amount,
+          dryRun: opts.dryRun,
+        })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful — vest would be created');
       else outputTxResult(result.hash, result.explorerUrl);
@@ -179,12 +186,14 @@ xsigma
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await exitVest({
-        publicClient,
-        walletClient,
-        vestId: parseInt(cmdOpts.vestId),
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Exiting vest...', opts.json, () =>
+        exitVest({
+          publicClient,
+          walletClient,
+          vestId: parseInt(cmdOpts.vestId),
+          dryRun: opts.dryRun,
+        })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful — vest would be exited');
       else outputTxResult(result.hash, result.explorerUrl);
@@ -200,11 +209,13 @@ xsigma
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await triggerRebase({
-        publicClient,
-        walletClient,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Triggering rebase...', opts.json, () =>
+        triggerRebase({
+          publicClient,
+          walletClient,
+          dryRun: opts.dryRun,
+        })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful — rebase would trigger');
       else outputTxResult(result.hash, result.explorerUrl);
@@ -221,12 +232,14 @@ xsigma
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await stakeXSigma({
-        publicClient,
-        walletClient,
-        amount: cmdOpts.amount,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Staking xSIGMA...', opts.json, () =>
+        stakeXSigma({
+          publicClient,
+          walletClient,
+          amount: cmdOpts.amount,
+          dryRun: opts.dryRun,
+        })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful — stake would succeed');
       else outputTxResult(result.hash, result.explorerUrl);
@@ -243,12 +256,14 @@ xsigma
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await unstakeXSigma({
-        publicClient,
-        walletClient,
-        amount: cmdOpts.amount,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Unstaking xSIGMA...', opts.json, () =>
+        unstakeXSigma({
+          publicClient,
+          walletClient,
+          amount: cmdOpts.amount,
+          dryRun: opts.dryRun,
+        })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful — unstake would succeed');
       else outputTxResult(result.hash, result.explorerUrl);

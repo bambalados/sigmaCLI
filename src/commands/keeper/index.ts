@@ -6,6 +6,7 @@ import { rebalance, liquidate } from '../../sdk/keeper.js';
 import { outputJson, outputTxResult, outputSuccess } from '../../output.js';
 import type { GlobalOptions } from '../../types.js';
 import type { Address } from 'viem';
+import { maybeWithSpinner } from '../../spinner.js';
 
 const keeper = new Command('keeper').description('Permissionless rebalancing and liquidation (earn bounties)');
 
@@ -26,12 +27,14 @@ keeper
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await rebalance({
-        publicClient,
-        walletClient,
-        pool: cmdOpts.pool as Address | undefined,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Executing rebalance...', opts.json, () =>
+        rebalance({
+          publicClient,
+          walletClient,
+          pool: cmdOpts.pool as Address | undefined,
+          dryRun: opts.dryRun,
+        })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful - rebalancing would succeed');
       else outputTxResult(result.hash, result.explorerUrl);
@@ -48,12 +51,14 @@ keeper
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await liquidate({
-        publicClient,
-        walletClient,
-        pool: cmdOpts.pool as Address | undefined,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Executing liquidation...', opts.json, () =>
+        liquidate({
+          publicClient,
+          walletClient,
+          pool: cmdOpts.pool as Address | undefined,
+          dryRun: opts.dryRun,
+        })
+      );
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful - liquidation would succeed');
       else outputTxResult(result.hash, result.explorerUrl);

@@ -29,32 +29,28 @@ Key contract details:
 - Documentation: README.md, USAGE.md, CONTRIBUTING.md, SECURITY.md
 - `mint direct` was removed (SigmaController.mint cap reached/paused)
 
-## V1.1 Roadmap
+## V1.1 Status (COMPLETE)
 
 ### Feature 1: CLI Polish & First-Run Wizard
-- ASCII art banner/logo on startup (like Claude Code CLI or OpenClaw)
-- First-run detection: check if private key exists in Keychain
-- Interactive setup wizard on first run:
-  1. Welcome screen with banner
-  2. Wallet setup — user chooses: macOS Keychain (recommended) / env var / .env file
-  3. RPC setup — "Use default free RPC" or "Add NodeReal API key (free, better rate limits)"
-  4. Quick connectivity test: verify RPC connection, show current BNB price
-- Colored output, spinners for pending transactions, progress indicators
-- Reference: look at how Claude Code CLI and OpenClaw handle their startup UX
+- ASCII art sigma banner with yellow→red gradient on startup
+- First-run detection: checks Keychain + env for private key
+- Interactive setup wizard: wallet (Keychain/env/.env), RPC (default/NodeReal), connectivity test
+- Spinners on all 33 write commands via `maybeWithSpinner()` (hidden in `--json` mode)
+- Version bumped to 1.1.0
 
 ### Feature 2: TP/SL (Take Profit / Stop Loss)
-- Users set take-profit and/or stop-loss price on a trading position
-- When oracle price hits target, position auto-closes
-- Design questions to resolve:
-  1. Persistence: store TP/SL orders in ~/.sigma/orders.json or project-local?
-  2. Monitoring: long-running `sigma trade monitor` process vs cron?
-  3. Support both long and short positions
-  4. What happens if CLI isn't running when price crosses threshold?
-- Example commands:
-  - `sigma trade set-tp --position-id 155 --price 700`
-  - `sigma trade set-sl --position-id 155 --price 580`
-  - `sigma trade monitor` (polls price, triggers closes)
-- Close positions via existing trade close SDK function
+- `set-tp`, `set-sl`: set take-profit/stop-loss on any tracked position
+- `monitor`: polls BNBPriceOracle every N seconds, auto-closes when triggered
+- `monitor --background`: runs as detached process, frees terminal
+- `monitor-status`: shows PID, active orders, recent log
+- `monitor-stop`: kills background monitor
+- `list-orders`, `cancel-order`: manage active orders
+- PnL display on close: entry/exit price, received amount, PnL in USD and %
+- PID lock file (`~/.sigma-money/monitor.pid`) prevents false "unmonitored" warnings
+- In-flight tracking prevents double-trigger on same position
+- Orders at `~/.sigma-money/orders.json`, positions at `~/.sigma-money/positions.json`
+- Both long and short positions supported
+- 71 commands across 11 groups (up from 64 in V1.0)
 
 ## Key Files
 
@@ -73,6 +69,12 @@ Key contract details:
 | src/sdk/xsigma.ts | xSIGMA operations |
 | src/sdk/stability-pool.ts | Stability pool deposit/withdraw |
 | src/sdk/curve-lp.ts | Curve LP provisioning |
+| src/sdk/monitor.ts | TP/SL price polling, trigger logic, PID lock |
+| src/order-store.ts | TP/SL order persistence (~/.sigma-money/orders.json) |
+| src/position-store.ts | Position entry tracking (~/.sigma-money/positions.json) |
+| src/banner.ts | ASCII art sigma logo |
+| src/spinner.ts | ora spinner wrappers (withSpinner, maybeWithSpinner) |
+| src/wizard.ts | First-run setup wizard |
 
 ## Known Issues (V1.0)
 

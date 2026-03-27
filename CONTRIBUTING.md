@@ -6,7 +6,7 @@ Thanks for your interest in contributing! This guide will help you get started.
 
 ```bash
 git clone https://github.com/bambalados/sigmaCLI.git
-cd SigmaMoneyCLI
+cd sigmaCLI
 npm install
 npm run build       # Build the CLI
 npm run dev         # Watch mode (rebuild on changes)

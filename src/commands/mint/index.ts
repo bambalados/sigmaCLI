@@ -13,6 +13,7 @@ import { getPoolRiskParams, discoverPools, getPositionData } from '../../sdk/rea
 import { outputJson, outputTxResult, outputSuccess, outputKeyValue, outputWarn } from '../../output.js';
 import type { GlobalOptions } from '../../types.js';
 import { ADDRESSES } from '../../contracts/addresses.js';
+import { maybeWithSpinner } from '../../spinner.js';
 
 const mint = new Command('mint').description('Mint v2: open and manage bnbUSD minting positions');
 
@@ -90,15 +91,17 @@ mint
 
       const positionId = cmdOpts.positionId ? parseInt(cmdOpts.positionId) : undefined;
 
-      const result = await mintWithPosition({
-        publicClient,
-        walletClient,
-        collateral: cmdOpts.collateral as 'BNB' | 'WBNB',
-        amount: cmdOpts.amount,
-        borrow: borrowAmount,
-        positionId,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Minting bnbUSD...', opts.json, () =>
+        mintWithPosition({
+          publicClient,
+          walletClient,
+          collateral: cmdOpts.collateral as 'BNB' | 'WBNB',
+          amount: cmdOpts.amount,
+          borrow: borrowAmount,
+          positionId,
+          dryRun: opts.dryRun,
+        })
+      );
 
       if (opts.json) {
         outputJson({ ...result, ltv: actualLtv + '%', rebalancingPrice: rebalPrice });
@@ -138,14 +141,16 @@ mint
         console.log(`\nClose position #${cmdOpts.positionId}: ${parts.join(' + ')}\n`);
       }
 
-      const result = await closeMintPosition({
-        publicClient,
-        walletClient,
-        positionId: parseInt(cmdOpts.positionId),
-        withdrawCollateral: cmdOpts.collateral,
-        repayDebt: cmdOpts.repay,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Closing mint position...', opts.json, () =>
+        closeMintPosition({
+          publicClient,
+          walletClient,
+          positionId: parseInt(cmdOpts.positionId),
+          withdrawCollateral: cmdOpts.collateral,
+          repayDebt: cmdOpts.repay,
+          dryRun: opts.dryRun,
+        })
+      );
 
       if (opts.json) {
         outputJson(result);
@@ -214,14 +219,16 @@ mint
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await mintAndEarnBnbUsd({
-        publicClient,
-        walletClient,
-        collateral: cmdOpts.collateral as 'BNB' | 'WBNB',
-        amount: cmdOpts.amount,
-        minOut: cmdOpts.minOut,
-        dryRun: opts.dryRun,
-      });
+      const result = await maybeWithSpinner('Minting and depositing...', opts.json, () =>
+        mintAndEarnBnbUsd({
+          publicClient,
+          walletClient,
+          collateral: cmdOpts.collateral as 'BNB' | 'WBNB',
+          amount: cmdOpts.amount,
+          minOut: cmdOpts.minOut,
+          dryRun: opts.dryRun,
+        })
+      );
 
       if (opts.json) {
         outputJson(result);

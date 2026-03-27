@@ -9,7 +9,7 @@ Command-line interface for the [Sigma.Money](https://sigma.money) DeFi protocol 
 ## Features
 
 - **Dashboard** -- View balances, positions, and protocol stats
-- **Trade** -- Open, close, and manage leveraged positions
+- **Trade** -- Open, close, and manage leveraged positions with TP/SL
 - **Pool** -- Stability pool deposits, withdrawals, and rewards
 - **xSIGMA** -- Convert, stake, vest, instant exit, and rebase
 - **Governance** -- Vote on gauge emissions, claim incentives
@@ -49,6 +49,27 @@ sigma mint open --collateral BNB --amount 0.1 --borrow 50
 sigma gov vote --gauge 0x1F04...  --weight 60 \
                --gauge 0x6a25...  --weight 40
 ```
+
+### Take-Profit / Stop-Loss
+
+Set TP/SL on any open position and run the background monitor to auto-close when targets are hit:
+
+```bash
+# Set take-profit and stop-loss
+sigma trade set-tp --position-id 42 --price 700
+sigma trade set-sl --position-id 42 --price 580
+
+# Start the background monitor
+sigma trade monitor --background
+
+# Check status anytime
+sigma trade monitor-status
+
+# Stop the monitor
+sigma trade monitor-stop
+```
+
+> **Note:** TP/SL orders only execute while the monitor is running. The CLI will warn you if you have unmonitored orders. Orders are saved locally and resume on the next `sigma trade monitor` start.
 
 All write commands support `--dry-run` to simulate without executing:
 
@@ -164,6 +185,13 @@ sigma dashboard --rpc https://your-rpc-endpoint/
 | `sigma trade open-long --collateral BNB --amount <n> --leverage <x>` | Open leveraged long BNB position |
 | `sigma trade open-short --collateral bnbUSD --amount <n> --leverage <x>` | Open leveraged short BNB position |
 | `sigma trade close --position-id <id>` | Close a leveraged position |
+| `sigma trade set-tp --position-id <id> --price <n>` | Set take-profit price |
+| `sigma trade set-sl --position-id <id> --price <n>` | Set stop-loss price |
+| `sigma trade monitor --background` | Start background TP/SL price monitor |
+| `sigma trade monitor-status` | Check monitor status and active orders |
+| `sigma trade monitor-stop` | Stop the background monitor |
+| `sigma trade list-orders` | List all active TP/SL orders |
+| `sigma trade cancel-order --position-id <id> --type <tp\|sl>` | Cancel a TP/SL order |
 | `sigma trade add --position-id <id> --collateral <type> --amount <n>` | Add collateral to position |
 | `sigma mint open --collateral BNB --amount <n> --borrow <n>` | Open a new minting position |
 | `sigma mint open --position-id <id> --collateral BNB --amount <n> --borrow <n>` | Add to existing position |
