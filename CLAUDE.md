@@ -105,14 +105,14 @@ Key contract details:
 ## Known Issues
 
 1. LP token order: bnbUSD-USDT pool expects [USDT, bnbUSD] not [bnbUSD, USDT]
-2. xsigma rebase: reverts when no rebase available — could add pre-check
+2. ~~xsigma rebase: reverts when no rebase available~~ — Root cause identified: `xSIGMA.rebase()` reverts with `NOT_MINTER()` — only the Voter/minter contract can trigger rebase distribution, not regular users. The command is non-functional for all users. **V1.3**: either remove command or replace with a pre-check + helpful error message directing users to `gov claim-rebase` or `xsigma compound`
 3. redeem/keeper: revert when protocol conditions not met — could add pre-checks
 4. SP3 exchange rate: ~21:1 share/token ratio confuses users
 5. High-leverage positions (>=85% debt ratio) are vulnerable to protocol redemptions before TP/SL can fire — warn users but can't prevent
 6. Monitor process doesn't survive system reboot — user must restart `sigma trade monitor --background`
 7. ~~Incomplete long close leaves SY tokens unredeemed~~ — FIXED in V1.2 (mint close now converts SY→slisBNB→BNB; trade close shows warning + `sigma trade recover`)
 8. SP (Lista-MEV Vault) is suspended — deposits disabled in CLI, withdrawals still work
-9. `xsigma rebase` still reverts for non-privileged callers (protocol design, not a bug — use `gov claim-rebase` instead)
+9. `xsigma rebase` reverts with `NOT_MINTER()` for all users — only the Voter/minter contract can call `xSIGMA.rebase()`. Users should use `gov claim-rebase` (claims VoteModule rewards) or `xsigma compound` (full auto-compound). **V1.3**: fix or remove this command
 
 ## Release Checklist
 

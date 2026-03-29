@@ -707,10 +707,10 @@ sigma xsigma exit-vest --vest-id 1
 
 ### `sigma xsigma rebase`
 
-Trigger the rebase distribution. Distributes accumulated protocol fees to xSIGMA stakers.
+> **Note:** This command is non-functional for regular users. The `xSIGMA.rebase()` contract function can only be called by the Voter/minter contract (`NOT_MINTER()` error). To claim your staking rewards, use `sigma gov claim-rebase` or `sigma xsigma compound` instead.
 
 ```bash
-sigma xsigma rebase
+sigma xsigma rebase  # Will revert — use gov claim-rebase or xsigma compound
 ```
 
 ### `sigma xsigma compound`
