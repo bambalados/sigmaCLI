@@ -254,3 +254,147 @@ Changes made before extended testing:
 | Gas (~15 txs) | ~0.001 | — |
 | **Extended total** | **~0.001 BNB** | **~$4** |
 | **Grand total (both rounds)** | **~0.015 BNB (~$9.45)** | **~$14** |
+
+---
+
+## V1.2 Test Results — BSC Mainnet
+
+**Date:** 2026-03-28 / 2026-03-29
+**Wallet:** `0x3394FCB057693396Ae211005963D0eb6123e79bc`
+**BNB Price:** ~$608-614
+**Network:** BSC Mainnet
+
+### Summary
+
+| Phase | Commands Tested | Pass | Fail | Expected Revert |
+|-------|----------------|------|------|-----------------|
+| Bug fix: slisBNB stranding | 5 | 5 | 0 | 0 |
+| Universal collateral (long) | 3 | 3 | 0 | 0 |
+| Universal collateral (short) | 3 | 3 | 0 | 0 |
+| Close output routing | 6 | 6 | 0 | 0 |
+| Auto-stake LP/SP | 4 | 4 | 0 | 0 |
+| Auto-compound | 1 | 1 | 0 | 0 |
+| Recovery | 3 | 3 | 0 | 0 |
+| Suspended pool (SP) | 1 | 0 | 0 | 1 |
+| xSIGMA rebase | 1 | 0 | 0 | 1 |
+| Dashboard | 1 | 1 | 0 | 0 |
+| **V1.2 Total** | **28** | **26** | **0** | **2** |
+
+---
+
+### Bug Fix: slisBNB Stranding (5/5 Pass)
+
+| # | Command | Result | Notes |
+|---|---------|--------|-------|
+| B1 | `trade close --position-id 161` (long, no --output) | PASS | Received 0.00498 BNB — default now BNB for longs |
+| B2 | `trade close --position-id 162 --output bnbUSD` (long) | PASS | Warning shown: "slisBNB (unconverted)", suggests `trade recover` |
+| B3 | `trade recover` | PASS | Recovered 0.004811 slisBNB → 0.004976 BNB |
+| B4 | `trade close --position-id 163 --output bnbUSD` (long, after fix) | PASS | Received 3.051 bnbUSD — 3-hop route works |
+| B5 | `trade recover` (verify clean) | PASS | "No stranded slisBNB found in wallet" |
+
+---
+
+### Universal Collateral — Open Long (3/3 Pass)
+
+| # | Command | Result | TX Hash | Notes |
+|---|---------|--------|---------|-------|
+| L1 | `trade open-long --collateral BNB --amount 0.005 --leverage 2` | PASS | `0xd71c83...` | Position #164 (direct) |
+| L3 | `trade open-long --collateral USDT --amount 3 --leverage 2` | PASS | `0x66b06d...` | Position #165 (USDT→WBNB→BNB) |
+| L4 | `trade open-long --collateral bnbUSD --amount 3 --leverage 2` | PASS | `0x40e94b...` | Position #166 (bnbUSD→USDT→WBNB→BNB) |
+
+---
+
+### Universal Collateral — Open Short (3/3 Pass)
+
+| # | Command | Result | TX Hash | Notes |
+|---|---------|--------|---------|-------|
+| S2 | `trade open-short --collateral USDT --amount 3 --leverage 2` | PASS | `0x9ed144...` | Position #61 (USDT→bnbUSD) |
+| S4 | `trade open-short --collateral BNB --amount 0.005 --leverage 2` | PASS | `0x073428...` | BNB→WBNB→USDT→bnbUSD |
+| S5 | `trade open-short --collateral bnbUSD --amount 1 --leverage 2` | PASS | `0x699...` / `0xc13...` | Positions #62, #63 (direct) |
+
+---
+
+### Close Output Routing (6/6 Pass)
+
+| # | Command | Result | Notes |
+|---|---------|--------|-------|
+| C1 | `trade close --position-id 164 --output BNB` | PASS | Received 0.00498 BNB |
+| C2 | `trade close --position-id 165 --output bnbUSD` | PASS | Received 2.977 bnbUSD (3-hop) |
+| C3 | `trade close --position-id 61 --output BNB` | PASS | Received 0.00486 BNB |
+| C4 | `trade close --position-id 166 --output USDT` | PASS | Position closed (small equity) |
+| C5 | `trade close --position-id 62 --output USDT` | PASS | Received 0.998 USDT |
+| C6 | `trade close --position-id 63 --output bnbUSD` | PASS | bnbUSD returned (no-op, default) |
+
+---
+
+### Auto-Stake LP & SP Shares (4/4 Pass)
+
+| # | Command | Result | TX Hash | Notes |
+|---|---------|--------|---------|-------|
+| AS1 | `lp stake --pool bnbUSD-USDT --amount 4.976...` | PASS | `0x00b35d...` | 4.977 LP staked in gauge |
+| AS2 | `lp stake --pool SIGMA-bnbUSD --amount 0.385...` | PASS | `0x5a40de...` | 0.386 LP staked in gauge |
+| AS3 | `pool stake --pool SP1 --amount 2.970...` | PASS | `0x8a0206...` | SP1 shares staked |
+| AS4 | `pool stake --pool SP2 --amount 0.995...` | PASS | `0x06fd69...` | SP2 shares staked |
+
+---
+
+### Auto-Compound (1/1 Pass)
+
+| # | Command | Result | TX Hash | Notes |
+|---|---------|--------|---------|-------|
+| AC1 | `xsigma compound --vote` | PASS | (multiple) | Claimed rebase, converted 2.133 SIGMA→xSIGMA, staked 2.144 xSIGMA, refreshed votes |
+
+---
+
+### Recovery (3/3 Pass)
+
+| # | Command | Result | TX Hash | Notes |
+|---|---------|--------|---------|-------|
+| R1 | `trade recover` (initial, 0.028864 slisBNB) | PASS | (swap) | Recovered 0.028864 slisBNB → 0.029859 BNB |
+| R2 | `trade recover` (after B3) | PASS | (swap) | Recovered 0.004811 slisBNB → 0.004976 BNB |
+| R3 | `trade recover` (verify clean) | PASS | — | "No stranded slisBNB found in wallet" |
+
+---
+
+### Suspended Pool — SP (1 Expected Revert)
+
+| # | Command | Result | Notes |
+|---|---------|--------|-------|
+| SP1 | `pool deposit --pool SP --token USDT --amount 1 --dry-run` | EXPECTED REVERT | "SP (Lista-MEV Vault) is suspended" |
+
+---
+
+### xSIGMA Rebase (1 Expected Revert)
+
+| # | Command | Result | Notes |
+|---|---------|--------|-------|
+| XR1 | `xsigma rebase` | EXPECTED REVERT | `NOT_MINTER()` — only Voter/minter contract can call. Use `gov claim-rebase` instead |
+
+---
+
+### Dashboard (1/1 Pass)
+
+| # | Command | Result | Notes |
+|---|---------|--------|-------|
+| D1 | `dashboard balances` | PASS | Shows xSIGMA staked (4.04), LP/gauge table (bnbUSD-USDT, SIGMA-bnbUSD) |
+
+---
+
+### Governance (2/2 Pass)
+
+| # | Command | Result | TX Hash | Notes |
+|---|---------|--------|---------|-------|
+| G1 | `xsigma stake --amount 1.7` | PASS | `0xc64625...` | 1.7 xSIGMA staked (1.9 total) |
+| G2 | `gov vote --gauge 0x6a25b41C... --weight 100` | PASS | `0x385e4b...` | 100% on HUGE Sigma/bnbUSD |
+
+---
+
+### V1.2 Budget Used
+
+| Category | BNB | USDT/bnbUSD |
+|----------|-----|-------------|
+| Long opens (BNB, USDT, bnbUSD) | 0.005 | 6 USDT + 3 bnbUSD |
+| Short opens (bnbUSD, USDT, BNB) | 0.005 | 3 USDT + 2 bnbUSD |
+| Gas (~40 txs) | ~0.005 | — |
+| **V1.2 total** | **~0.015 BNB** | **~$14** |
+| **Grand total (V1.0 + V1.1 + V1.2)** | **~0.030 BNB (~$18)** | **~$28** |
