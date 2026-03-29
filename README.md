@@ -17,6 +17,10 @@ Command-line interface for the [Sigma.Money](https://sigma.money) DeFi protocol 
 - **LP** -- Curve LP provisioning and gauge staking
 - **Redeem** -- Redeem bnbUSD for underlying collateral
 - **Keeper** -- Permissionless rebalancing and liquidation (earn bounties)
+- **Universal collateral** -- Open longs/shorts with any of BNB, WBNB, USDT, or bnbUSD (auto-converts)
+- **Auto-stake** -- LP and pool deposits auto-stake into gauge by default
+- **Auto-compound** -- `xsigma compound` claims rewards, converts, stakes, and votes in one command
+- **Recovery** -- `trade recover` swaps stranded intermediate tokens
 
 ## Installation
 
@@ -48,6 +52,12 @@ sigma mint open --collateral BNB --amount 0.1 --borrow 50
 # Vote on gauge emissions (requires staked xSIGMA)
 sigma gov vote --gauge 0x1F04...  --weight 60 \
                --gauge 0x6a25...  --weight 40
+
+# Open a leveraged long with USDT (auto-converts to BNB)
+sigma trade open-long --collateral USDT --amount 5 --leverage 2
+
+# Open a leveraged short with BNB
+sigma trade open-short --collateral BNB --amount 0.01 --leverage 2
 ```
 
 ### Take-Profit / Stop-Loss
@@ -55,9 +65,9 @@ sigma gov vote --gauge 0x1F04...  --weight 60 \
 Set TP/SL on any open position and run the background monitor to auto-close when targets are hit:
 
 ```bash
-# Set take-profit and stop-loss
-sigma trade set-tp --position-id 42 --price 700
-sigma trade set-sl --position-id 42 --price 580
+# Set take-profit and stop-loss (--output: BNB, WBNB, USDT, or bnbUSD)
+sigma trade set-tp --position-id 42 --price 700 --output USDT
+sigma trade set-sl --position-id 42 --price 580 --output bnbUSD
 
 # Start the background monitor
 sigma trade monitor --background
@@ -182,8 +192,8 @@ sigma dashboard --rpc https://your-rpc-endpoint/
 
 | Command | Description |
 |---------|-------------|
-| `sigma trade open-long --collateral BNB --amount <n> --leverage <x>` | Open leveraged long BNB position |
-| `sigma trade open-short --collateral bnbUSD --amount <n> --leverage <x>` | Open leveraged short BNB position |
+| `sigma trade open-long --collateral <type> --amount <n> --leverage <x>` | Open leveraged long BNB position |
+| `sigma trade open-short --collateral <type> --amount <n> --leverage <x>` | Open leveraged short BNB position |
 | `sigma trade close --position-id <id>` | Close a leveraged position |
 | `sigma trade set-tp --position-id <id> --price <n>` | Set take-profit price |
 | `sigma trade set-sl --position-id <id> --price <n>` | Set stop-loss price |
@@ -192,6 +202,7 @@ sigma dashboard --rpc https://your-rpc-endpoint/
 | `sigma trade monitor-stop` | Stop the background monitor |
 | `sigma trade list-orders` | List all active TP/SL orders |
 | `sigma trade cancel-order --position-id <id> --type <tp\|sl>` | Cancel a TP/SL order |
+| `sigma trade recover` | Recover stranded slisBNB by swapping to BNB |
 | `sigma trade add --position-id <id> --collateral <type> --amount <n>` | Add collateral to position |
 | `sigma mint open --collateral BNB --amount <n> --borrow <n>` | Open a new minting position |
 | `sigma mint open --position-id <id> --collateral BNB --amount <n> --borrow <n>` | Add to existing position |
@@ -209,6 +220,7 @@ sigma dashboard --rpc https://your-rpc-endpoint/
 | `sigma xsigma vest --amount <n>` | Create vesting position (14-180 days) |
 | `sigma xsigma exit-vest --vest-id <id>` | Exit a vesting position |
 | `sigma xsigma rebase` | Trigger xSIGMA rebase |
+| `sigma xsigma compound` | Auto-compound: claim rewards, convert, stake xSIGMA |
 | `sigma gov vote --gauge <addr> --weight <n>` | Vote on gauge emissions |
 | `sigma gov reset` | Reset all votes |
 | `sigma gov poke` | Refresh vote weights |

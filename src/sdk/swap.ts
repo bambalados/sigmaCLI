@@ -35,6 +35,14 @@ export async function quoteBnbusdToUsdt(
   return pool.read.get_dy([CURVE_BNBUSD_IDX, CURVE_USDT_IDX, amount]);
 }
 
+/** Get Curve quote: USDT → bnbUSD */
+export async function quoteUsdtToBnbusd(
+  publicClient: PublicClient, amount: bigint,
+): Promise<bigint> {
+  const pool = readCurvePool(ADDRESSES.CURVE_BNBUSD_USDT, { public: publicClient });
+  return pool.read.get_dy([CURVE_USDT_IDX, CURVE_BNBUSD_IDX, amount]);
+}
+
 /** Get PancakeSwap V3 quote for a single-hop swap */
 async function quotePcsV3(
   publicClient: PublicClient,
@@ -85,8 +93,19 @@ async function swapBnbusdToUsdt(
   const pool = writeCurvePool(ADDRESSES.CURVE_BNBUSD_USDT, { public: publicClient, wallet: walletClient });
   const hash = await pool.write.exchange([CURVE_BNBUSD_IDX, CURVE_USDT_IDX, amount, minOut]);
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
-  // Return actual amount received by reading USDT transfer from receipt logs
   return parseTransferAmount(receipt.logs, ADDRESSES.USDT, walletClient.account!.address);
+}
+
+/** Swap USDT → bnbUSD via Curve bnbUSD-USDT pool */
+async function swapUsdtToBnbusd(
+  publicClient: PublicClient, walletClient: BscWalletClient,
+  amount: bigint, minOut: bigint,
+): Promise<bigint> {
+  await ensureAllowance(publicClient, walletClient, ADDRESSES.USDT, ADDRESSES.CURVE_BNBUSD_USDT, amount);
+  const pool = writeCurvePool(ADDRESSES.CURVE_BNBUSD_USDT, { public: publicClient, wallet: walletClient });
+  const hash = await pool.write.exchange([CURVE_USDT_IDX, CURVE_BNBUSD_IDX, amount, minOut]);
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  return parseTransferAmount(receipt.logs, ADDRESSES.BNBUSD, walletClient.account!.address);
 }
 
 /** Swap via PancakeSwap V3 exactInputSingle */
@@ -121,6 +140,111 @@ async function unwrapWbnbToNative(
   const wbnb = writeWbnb({ public: publicClient, wallet: walletClient });
   const hash = await wbnb.write.withdraw([amount]);
   await publicClient.waitForTransactionReceipt({ hash });
+}
+
+/** Wrap native BNB → WBNB */
+export async function wrapBnbToWbnb(
+  publicClient: PublicClient, walletClient: BscWalletClient,
+  amount: bigint,
+): Promise<void> {
+  const wbnb = writeWbnb({ public: publicClient, wallet: walletClient });
+  const hash = await wbnb.write.deposit({ value: amount });
+  await publicClient.waitForTransactionReceipt({ hash });
+}
+
+// ── Pre-Conversion: Convert any collateral to native BNB ──
+
+export async function convertToNativeBnb(params: {
+  publicClient: PublicClient;
+  walletClient: BscWalletClient;
+  fromToken: 'BNB' | 'WBNB' | 'USDT' | 'bnbUSD';
+  amount: bigint;
+  slippage?: number;
+}): Promise<{ bnbAmount: bigint }> {
+  const { publicClient, walletClient, fromToken, amount, slippage = 0.5 } = params;
+  const account = walletClient.account!;
+  const applySlip = (quote: bigint): bigint =>
+    quote * BigInt(Math.floor((100 - slippage) * 100)) / 10000n;
+
+  if (fromToken === 'BNB') {
+    return { bnbAmount: amount };
+  }
+
+  if (fromToken === 'WBNB') {
+    await unwrapWbnbToNative(publicClient, walletClient, amount);
+    return { bnbAmount: amount };
+  }
+
+  if (fromToken === 'USDT') {
+    // USDT → WBNB → unwrap → BNB
+    const wbnbQuote = await quoteUsdtToWbnb(publicClient, amount);
+    const wbnbOut = await swapPcsV3(
+      publicClient, walletClient,
+      ADDRESSES.USDT, ADDRESSES.WBNB,
+      USDT_WBNB_FEE, amount, applySlip(wbnbQuote),
+      account.address,
+    );
+    await unwrapWbnbToNative(publicClient, walletClient, wbnbOut);
+    return { bnbAmount: wbnbOut };
+  }
+
+  // bnbUSD → USDT → WBNB → unwrap → BNB
+  const usdtQuote = await quoteBnbusdToUsdt(publicClient, amount);
+  const usdtOut = await swapBnbusdToUsdt(publicClient, walletClient, amount, applySlip(usdtQuote));
+  const wbnbQuote = await quoteUsdtToWbnb(publicClient, usdtOut);
+  const wbnbOut = await swapPcsV3(
+    publicClient, walletClient,
+    ADDRESSES.USDT, ADDRESSES.WBNB,
+    USDT_WBNB_FEE, usdtOut, applySlip(wbnbQuote),
+    account.address,
+  );
+  await unwrapWbnbToNative(publicClient, walletClient, wbnbOut);
+  return { bnbAmount: wbnbOut };
+}
+
+// ── Pre-Conversion: Convert any collateral to bnbUSD ──
+
+export async function convertToBnbusd(params: {
+  publicClient: PublicClient;
+  walletClient: BscWalletClient;
+  fromToken: 'BNB' | 'WBNB' | 'USDT' | 'bnbUSD';
+  amount: bigint;
+  slippage?: number;
+}): Promise<{ bnbusdAmount: bigint }> {
+  const { publicClient, walletClient, fromToken, amount, slippage = 0.5 } = params;
+  const account = walletClient.account!;
+  const applySlip = (quote: bigint): bigint =>
+    quote * BigInt(Math.floor((100 - slippage) * 100)) / 10000n;
+
+  if (fromToken === 'bnbUSD') {
+    return { bnbusdAmount: amount };
+  }
+
+  if (fromToken === 'USDT') {
+    // USDT → bnbUSD via Curve
+    const bnbusdQuote = await quoteUsdtToBnbusd(publicClient, amount);
+    const bnbusdOut = await swapUsdtToBnbusd(publicClient, walletClient, amount, applySlip(bnbusdQuote));
+    return { bnbusdAmount: bnbusdOut };
+  }
+
+  let wbnbAmount = amount;
+  if (fromToken === 'BNB') {
+    // Wrap BNB → WBNB first
+    await wrapBnbToWbnb(publicClient, walletClient, amount);
+    wbnbAmount = amount;
+  }
+
+  // WBNB → USDT → bnbUSD
+  const usdtQuote = await quoteWbnbToUsdt(publicClient, wbnbAmount);
+  const usdtOut = await swapPcsV3(
+    publicClient, walletClient,
+    ADDRESSES.WBNB, ADDRESSES.USDT,
+    WBNB_USDT_FEE, wbnbAmount, applySlip(usdtQuote),
+    account.address,
+  );
+  const bnbusdQuote = await quoteUsdtToBnbusd(publicClient, usdtOut);
+  const bnbusdOut = await swapUsdtToBnbusd(publicClient, walletClient, usdtOut, applySlip(bnbusdQuote));
+  return { bnbusdAmount: bnbusdOut };
 }
 
 // ── Main Conversion Router ──
@@ -200,10 +324,27 @@ export async function convertProceeds(params: {
         return { outputAmount: usdtOut, outputToken: 'USDT' };
       }
       case 'bnbUSD': {
-        throw new Error(
-          'Converting slisBNB to bnbUSD is not supported directly. ' +
-          'Use --output BNB or WBNB, then mint bnbUSD separately with `sigma mint bnbusd`.',
+        // slisBNB → WBNB → USDT → bnbUSD (3 hops)
+        const wbnbQuote2 = await quoteSlisbnbToWbnb(publicClient, amount);
+        const wbnbOut2 = await swapPcsV3(
+          publicClient, walletClient,
+          ADDRESSES.SLISBNB, ADDRESSES.WBNB,
+          SLISBNB_WBNB_FEE, amount, applySlippage(wbnbQuote2),
+          account.address,
         );
+        const usdtQuote2 = await quoteWbnbToUsdt(publicClient, wbnbOut2);
+        const usdtOut2 = await swapPcsV3(
+          publicClient, walletClient,
+          ADDRESSES.WBNB, ADDRESSES.USDT,
+          WBNB_USDT_FEE, wbnbOut2, applySlippage(usdtQuote2),
+          account.address,
+        );
+        const bnbusdQuote = await quoteUsdtToBnbusd(publicClient, usdtOut2);
+        const bnbusdOut = await swapUsdtToBnbusd(
+          publicClient, walletClient,
+          usdtOut2, applySlippage(bnbusdQuote),
+        );
+        return { outputAmount: bnbusdOut, outputToken: 'bnbUSD' };
       }
       default:
         throw new Error(`Unsupported output token: ${toToken}`);
@@ -299,7 +440,7 @@ export function getValidOutputTokens(side: 'long' | 'short'): OutputToken[] {
   return ['bnbUSD', 'USDT', 'BNB', 'WBNB'];
 }
 
-/** Get the default output token — always bnbUSD unless user specifies otherwise */
-export function getDefaultOutputToken(_side: 'long' | 'short'): OutputToken {
-  return 'bnbUSD';
+/** Get the default output token based on position side */
+export function getDefaultOutputToken(side: 'long' | 'short'): OutputToken {
+  return side === 'long' ? 'BNB' : 'bnbUSD';
 }

@@ -13,6 +13,8 @@ import {
   readStabilityPool,
   readIPool,
   readErc20,
+  readVoteModule,
+  readCurveGauge,
 } from '../contracts/clients.js';
 import type { TokenBalances, ProtocolStats, PoolDepositInfo, PoolStats, PositionData, PoolRiskParams } from '../types.js';
 import { getEntry, getEntriesForWallet } from '../position-store.js';
@@ -26,16 +28,27 @@ export async function getBalances(
 ): Promise<TokenBalances> {
   const c = { public: publicClient };
 
-  const [bnbRaw, wbnbRaw, bnbusdRaw, sigmaRaw, xsigmaRaw, usdtRaw, uRaw] =
-    await Promise.all([
-      publicClient.getBalance({ address }),
-      readWbnb(c).read.balanceOf([address]),
-      readBnbUsd(c).read.balanceOf([address]),
-      readSigma(c).read.balanceOf([address]),
-      readXSigma(c).read.balanceOf([address]),
-      readUsdt(c).read.balanceOf([address]),
-      readErc20(ADDRESSES.U_TOKEN, c).read.balanceOf([address]),
-    ]);
+  const [
+    bnbRaw, wbnbRaw, bnbusdRaw, sigmaRaw, xsigmaRaw, xsigmaStakedRaw, usdtRaw, uRaw,
+    lpBnbusdUsdt, lpSigmaBnbusd, lpBnbusdU,
+    gaugeBnbusdUsdt, gaugeSigmaBnbusd,
+  ] = await Promise.all([
+    publicClient.getBalance({ address }),
+    readWbnb(c).read.balanceOf([address]),
+    readBnbUsd(c).read.balanceOf([address]),
+    readSigma(c).read.balanceOf([address]),
+    readXSigma(c).read.balanceOf([address]),
+    readVoteModule(c).read.balanceOf([address]),
+    readUsdt(c).read.balanceOf([address]),
+    readErc20(ADDRESSES.U_TOKEN, c).read.balanceOf([address]),
+    // LP token balances (in wallet)
+    readErc20(ADDRESSES.CURVE_BNBUSD_USDT, c).read.balanceOf([address]),
+    readErc20(ADDRESSES.CURVE_SIGMA_BNBUSD, c).read.balanceOf([address]),
+    readErc20(ADDRESSES.CURVE_BNBUSD_U, c).read.balanceOf([address]),
+    // Gauge balances (staked LP)
+    readCurveGauge(ADDRESSES.GAUGE_USDT_BNBUSD, c).read.balanceOf([address]),
+    readCurveGauge(ADDRESSES.GAUGE_SIGMA_BNBUSD, c).read.balanceOf([address]),
+  ]);
 
   return {
     bnb: formatUnits(bnbRaw, 18),
@@ -43,8 +56,14 @@ export async function getBalances(
     bnbusd: formatUnits(bnbusdRaw, 18),
     sigma: formatUnits(sigmaRaw, 18),
     xsigma: formatUnits(xsigmaRaw, 18),
+    xsigmaStaked: formatUnits(xsigmaStakedRaw, 18),
     usdt: formatUnits(usdtRaw, 18),
     u: formatUnits(uRaw, 18),
+    lp: {
+      'bnbUSD-USDT': { wallet: formatUnits(lpBnbusdUsdt, 18), staked: formatUnits(gaugeBnbusdUsdt, 18) },
+      'SIGMA-bnbUSD': { wallet: formatUnits(lpSigmaBnbusd, 18), staked: formatUnits(gaugeSigmaBnbusd, 18) },
+      'bnbUSD-U': { wallet: formatUnits(lpBnbusdU, 18) },
+    },
   };
 }
 
@@ -352,13 +371,14 @@ export async function getPoolStats(
       const total = totalYield + totalStable;
       const bnbusdPct = total > 0n ? (totalYield * BPS) / total : 0n;
 
+      const SUSPENDED_POOLS = new Set(['SP']);
       stats.push({
-        pool: name,
+        pool: SUSPENDED_POOLS.has(name) ? `${name} (SUSPENDED)` : name,
         tvl: formatUnits(total, 18),
         bnbusdAmount: formatUnits(totalYield, 18),
         usdtAmount: formatUnits(totalStable, 18),
         bnbusdPercent: (Number(bnbusdPct) / 100).toFixed(2) + '%',
-        apr: 'N/A',
+        apr: SUSPENDED_POOLS.has(name) ? 'SUSPENDED' : 'N/A',
       });
     } catch {
       stats.push({

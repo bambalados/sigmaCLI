@@ -12,7 +12,7 @@ import {
   getSystemHealth,
 } from '../../sdk/read.js';
 import { listUserPositions } from '../../sdk/trading.js';
-import { outputJson, outputKeyValue, outputTable, outputWarn } from '../../output.js';
+import { outputJson, outputKeyValue, outputTable, outputWarn, outputSuccess } from '../../output.js';
 import type { GlobalOptions } from '../../types.js';
 
 const dashboard = new Command('dashboard').description('View balances, positions, and protocol stats');
@@ -39,7 +39,22 @@ dashboard
           'U': balances.u,
           'SIGMA': balances.sigma,
           'xSIGMA': balances.xsigma,
+          'xSIGMA (staked)': balances.xsigmaStaked,
         });
+
+        // LP & Gauge balances
+        const lpRows: string[][] = [];
+        for (const [pool, data] of Object.entries(balances.lp)) {
+          const wallet = parseFloat(data.wallet);
+          const staked = 'staked' in data ? parseFloat(data.staked) : 0;
+          if (wallet > 0 || staked > 0) {
+            lpRows.push([pool, data.wallet, 'staked' in data ? data.staked : '—']);
+          }
+        }
+        if (lpRows.length > 0) {
+          console.log('');
+          outputTable(['LP Pool', 'In Wallet', 'Staked in Gauge'], lpRows);
+        }
       }
     } catch (e) {
       handleError(e, opts.json);

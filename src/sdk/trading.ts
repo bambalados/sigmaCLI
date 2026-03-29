@@ -14,7 +14,7 @@ import type { CollateralType, TxResult, PositionData } from '../types.js';
 import { txUrl } from '../config.js';
 import { saveEntry, removeEntry, getEntry } from '../position-store.js';
 import { ensureAllowance, extractPositionId } from './utils.js';
-import { convertProceeds, getDefaultOutputToken, type OutputToken } from './swap.js';
+import { convertProceeds, convertToNativeBnb, convertToBnbusd, getDefaultOutputToken, type OutputToken } from './swap.js';
 import { MIN_LEVERAGE, MAX_LEVERAGE } from './constants.js';
 
 const NATIVE_BNB = '0x0000000000000000000000000000000000000000' as `0x${string}`;
@@ -98,12 +98,6 @@ export async function openLongPosition(params: {
   if (leverage < MIN_LEVERAGE || leverage > MAX_LEVERAGE) throw new Error(`Leverage must be between ${MIN_LEVERAGE} and ${MAX_LEVERAGE}`);
 
   const amountWei = parseUnits(amount, 18);
-  const { price } = await getBnbPrice(publicClient);
-  const collValueInUsd = (amountWei * price) / (10n ** 18n);
-  // debt = collValue * (L-1) / L  (so at 2x: debt = 50% of collateral value)
-  const leverageBps = BigInt(Math.floor(leverage * 1000));
-  const debtAmount = (collValueInUsd * (leverageBps - 1000n)) / leverageBps;
-
   const pool = await getDefaultPoolAddress(publicClient);
 
   if (dryRun) {
@@ -115,35 +109,44 @@ export async function openLongPosition(params: {
 
   const wc = { public: publicClient, wallet: walletClient };
 
-  // 1. Deposit into SY using native BNB (SY only accepts native BNB or slisBNB)
-  const isNativeBnb = collateral === 'BNB';
-  if (isNativeBnb || collateral === 'WBNB') {
-    // If WBNB, unwrap to native BNB first
-    if (collateral === 'WBNB') await unwrapWbnb(publicClient, walletClient, amountWei);
-
-    // 2. Deposit native BNB into SY (payable, tokenIn = address(0))
-    const syBal = await depositBnbToSy(publicClient, walletClient, account, amountWei);
-
-    // 3. Approve SY to PoolManager and operate
-    await ensureAllowance(publicClient, walletClient, ADDRESSES.SY, ADDRESSES.POOL_MANAGER, syBal);
-
-    const hash = await writePoolManager(wc).write.operate([pool, 0n, BigInt(syBal), BigInt(debtAmount)]);
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
-    try {
-      const posId = extractPositionId(receipt);
-      if (posId) {
-        const equityNum = Number(formatUnits(amountWei * price / (10n ** 18n) - debtAmount, 18));
-        saveEntry({ positionId: posId, walletAddress: account.address, poolAddress: pool, side: 'long', entryColls: formatUnits(amountWei, 18), entryDebts: formatUnits(debtAmount, 18), entryPrice: '$' + formatUnits(price, 18), entryEquity: equityNum.toFixed(6), timestamp: new Date().toISOString() });
-      }
-    } catch (e) {
-      console.error('Warning: Failed to save PnL entry:', e instanceof Error ? e.message : e);
-    }
-
-    return { hash, explorerUrl: txUrl(hash), positionId: extractPositionId(receipt)?.toString() };
+  // 1. Convert any collateral to native BNB
+  let bnbAmount: bigint;
+  if (collateral === 'BNB') {
+    bnbAmount = amountWei;
+  } else if (collateral === 'WBNB') {
+    await unwrapWbnb(publicClient, walletClient, amountWei);
+    bnbAmount = amountWei;
   } else {
-    throw new Error(`Collateral type ${collateral} is not supported for leveraged positions. The pool only accepts SY (wrapped BNB). Use BNB or WBNB as collateral.`);
+    const result = await convertToNativeBnb({ publicClient, walletClient, fromToken: collateral, amount: amountWei });
+    bnbAmount = result.bnbAmount;
   }
+
+  // 2. Calculate debt based on actual BNB amount after conversion
+  const { price } = await getBnbPrice(publicClient);
+  const collValueInUsd = (bnbAmount * price) / (10n ** 18n);
+  const leverageBps = BigInt(Math.floor(leverage * 1000));
+  const debtAmount = (collValueInUsd * (leverageBps - 1000n)) / leverageBps;
+
+  // 3. Deposit native BNB into SY (payable, tokenIn = address(0))
+  const syBal = await depositBnbToSy(publicClient, walletClient, account, bnbAmount);
+
+  // 4. Approve SY to PoolManager and operate
+  await ensureAllowance(publicClient, walletClient, ADDRESSES.SY, ADDRESSES.POOL_MANAGER, syBal);
+
+  const hash = await writePoolManager(wc).write.operate([pool, 0n, BigInt(syBal), BigInt(debtAmount)]);
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+  try {
+    const posId = extractPositionId(receipt);
+    if (posId) {
+      const equityNum = Number(formatUnits(collValueInUsd - debtAmount, 18));
+      saveEntry({ positionId: posId, walletAddress: account.address, poolAddress: pool, side: 'long', entryColls: formatUnits(bnbAmount, 18), entryDebts: formatUnits(debtAmount, 18), entryPrice: '$' + formatUnits(price, 18), entryEquity: equityNum.toFixed(6), timestamp: new Date().toISOString() });
+    }
+  } catch (e) {
+    console.error('Warning: Failed to save PnL entry:', e instanceof Error ? e.message : e);
+  }
+
+  return { hash, explorerUrl: txUrl(hash), positionId: extractPositionId(receipt)?.toString() };
 }
 
 export async function openShortPosition(params: {
@@ -159,19 +162,26 @@ export async function openShortPosition(params: {
 
   if (leverage < MIN_LEVERAGE || leverage > MAX_LEVERAGE) throw new Error(`Leverage must be between ${MIN_LEVERAGE} and ${MAX_LEVERAGE}`);
 
-  // Short positions use ShortPoolManager with bnbUSD as collateral.
-  // Only bnbUSD is accepted as short collateral (the short pool's collateralToken is bnbUSD).
-  if (collateral !== 'bnbUSD') {
-    throw new Error('Short positions require bnbUSD as collateral. Convert your tokens to bnbUSD first, then use --collateral bnbUSD.');
+  const amountWei = parseUnits(amount, 18);
+
+  // Convert any collateral to bnbUSD
+  let bnbusdAmount: bigint;
+  if (collateral === 'bnbUSD') {
+    bnbusdAmount = amountWei;
+  } else {
+    if (dryRun) {
+      return { hash: '0x0' as Hash, explorerUrl: 'DRY RUN - not executed' };
+    }
+    const result = await convertToBnbusd({ publicClient, walletClient, fromToken: collateral, amount: amountWei });
+    bnbusdAmount = result.bnbusdAmount;
   }
 
-  const amountWei = parseUnits(amount, 18);
   const { price } = await getBnbPrice(publicClient);
 
   // For shorts: collateral is bnbUSD, debt is SY (volatile asset).
   // debt in SY terms = collValue_usd * (L-1) / L / bnbPrice
   const leverageBps = BigInt(Math.floor(leverage * 1000));
-  const debtValueUsd = (amountWei * (leverageBps - 1000n)) / leverageBps;
+  const debtValueUsd = (bnbusdAmount * (leverageBps - 1000n)) / leverageBps;
   // Convert USD debt value to SY units (divide by BNB price)
   const debtInSy = (debtValueUsd * (10n ** 18n)) / price;
 
@@ -185,10 +195,10 @@ export async function openShortPosition(params: {
   }
 
   // Approve bnbUSD to ShortPoolManager
-  await ensureAllowance(publicClient, walletClient, ADDRESSES.BNBUSD, ADDRESSES.SHORT_POOL_MANAGER, amountWei);
+  await ensureAllowance(publicClient, walletClient, ADDRESSES.BNBUSD, ADDRESSES.SHORT_POOL_MANAGER, bnbusdAmount);
 
   const hash = await writeShortPoolManager({ public: publicClient, wallet: walletClient }).write.operate(
-    [pool, 0n, BigInt(amountWei), BigInt(debtInSy)],
+    [pool, 0n, BigInt(bnbusdAmount), BigInt(debtInSy)],
   );
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
@@ -198,13 +208,13 @@ export async function openShortPosition(params: {
   // Save entry for PnL tracking
   try {
     if (posId) {
-      const equityNum = Number(formatUnits(amountWei - debtValueUsd, 18));
+      const equityNum = Number(formatUnits(bnbusdAmount - debtValueUsd, 18));
       saveEntry({
         positionId: posId,
         walletAddress: account.address,
         poolAddress: pool,
         side: 'short',
-        entryColls: formatUnits(amountWei, 18),
+        entryColls: formatUnits(bnbusdAmount, 18),
         entryDebts: formatUnits(debtInSy, 18),
         entryPrice: '$' + formatUnits(price, 18),
         entryEquity: equityNum.toFixed(6),
@@ -346,14 +356,20 @@ export async function closePosition(params: {
       });
       const slisDelta = slisAfter - slisBefore;
       if (slisDelta > 0n) {
-        const result = await convertProceeds({
-          publicClient, walletClient,
-          fromToken: 'slisBNB',
-          toToken: desiredOutput,
-          amount: slisDelta,
-        });
-        outputAmount = formatUnits(result.outputAmount, 18);
-        outputTokenName = result.outputToken;
+        try {
+          const result = await convertProceeds({
+            publicClient, walletClient,
+            fromToken: 'slisBNB',
+            toToken: desiredOutput,
+            amount: slisDelta,
+          });
+          outputAmount = formatUnits(result.outputAmount, 18);
+          outputTokenName = result.outputToken;
+        } catch (e) {
+          console.error('Warning: Failed to convert slisBNB proceeds:', e instanceof Error ? e.message : e);
+          outputAmount = formatUnits(slisDelta, 18);
+          outputTokenName = 'slisBNB (unconverted)';
+        }
       }
     }
   } else {
@@ -366,14 +382,20 @@ export async function closePosition(params: {
       });
       const bnbusdDelta = bnbusdAfter - bnbusdBefore;
       if (bnbusdDelta > 0n) {
-        const result = await convertProceeds({
-          publicClient, walletClient,
-          fromToken: 'bnbUSD',
-          toToken: desiredOutput,
-          amount: bnbusdDelta,
-        });
-        outputAmount = formatUnits(result.outputAmount, 18);
-        outputTokenName = result.outputToken;
+        try {
+          const result = await convertProceeds({
+            publicClient, walletClient,
+            fromToken: 'bnbUSD',
+            toToken: desiredOutput,
+            amount: bnbusdDelta,
+          });
+          outputAmount = formatUnits(result.outputAmount, 18);
+          outputTokenName = result.outputToken;
+        } catch (e) {
+          console.error('Warning: Failed to convert bnbUSD proceeds:', e instanceof Error ? e.message : e);
+          outputAmount = formatUnits(bnbusdDelta, 18);
+          outputTokenName = 'bnbUSD (unconverted)';
+        }
       }
     }
   }
@@ -488,31 +510,39 @@ export async function addToPosition(params: {
   }
 
   if (isShort) {
-    // Short: collateral is bnbUSD
-    if (collateral !== 'bnbUSD') {
-      throw new Error('Short positions require bnbUSD as collateral. Use --collateral bnbUSD.');
+    // Short: convert any collateral to bnbUSD
+    let bnbusdAmount: bigint;
+    if (collateral === 'bnbUSD') {
+      bnbusdAmount = amountWei;
+    } else {
+      const result = await convertToBnbusd({ publicClient, walletClient, fromToken: collateral, amount: amountWei });
+      bnbusdAmount = result.bnbusdAmount;
     }
-    await ensureAllowance(publicClient, walletClient, ADDRESSES.BNBUSD, ADDRESSES.SHORT_POOL_MANAGER, amountWei);
+    await ensureAllowance(publicClient, walletClient, ADDRESSES.BNBUSD, ADDRESSES.SHORT_POOL_MANAGER, bnbusdAmount);
     const hash = await writeShortPoolManager({ public: publicClient, wallet: walletClient }).write.operate(
-      [pool, BigInt(positionId), BigInt(amountWei), 0n],
+      [pool, BigInt(positionId), BigInt(bnbusdAmount), 0n],
     );
     await publicClient.waitForTransactionReceipt({ hash });
     return { hash, explorerUrl: txUrl(hash) };
   } else {
-    // Long: collateral is SY (BNB/WBNB → SY)
-    const isNativeBnb = collateral === 'BNB';
-    if (isNativeBnb || collateral === 'WBNB') {
-      if (collateral === 'WBNB') await unwrapWbnb(publicClient, walletClient, amountWei);
-      const syBal = await depositBnbToSy(publicClient, walletClient, account, amountWei);
-      await ensureAllowance(publicClient, walletClient, ADDRESSES.SY, ADDRESSES.POOL_MANAGER, syBal);
-      const hash = await writePoolManager({ public: publicClient, wallet: walletClient }).write.operate(
-        [pool, BigInt(positionId), BigInt(syBal), 0n],
-      );
-      await publicClient.waitForTransactionReceipt({ hash });
-      return { hash, explorerUrl: txUrl(hash) };
+    // Long: convert any collateral to native BNB → SY
+    let bnbAmount: bigint;
+    if (collateral === 'BNB') {
+      bnbAmount = amountWei;
+    } else if (collateral === 'WBNB') {
+      await unwrapWbnb(publicClient, walletClient, amountWei);
+      bnbAmount = amountWei;
     } else {
-      throw new Error('Long positions require BNB or WBNB as collateral.');
+      const result = await convertToNativeBnb({ publicClient, walletClient, fromToken: collateral, amount: amountWei });
+      bnbAmount = result.bnbAmount;
     }
+    const syBal = await depositBnbToSy(publicClient, walletClient, account, bnbAmount);
+    await ensureAllowance(publicClient, walletClient, ADDRESSES.SY, ADDRESSES.POOL_MANAGER, syBal);
+    const hash = await writePoolManager({ public: publicClient, wallet: walletClient }).write.operate(
+      [pool, BigInt(positionId), BigInt(syBal), 0n],
+    );
+    await publicClient.waitForTransactionReceipt({ hash });
+    return { hash, explorerUrl: txUrl(hash) };
   }
 }
 

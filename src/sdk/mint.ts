@@ -5,7 +5,7 @@ import {
   formatUnits,
 } from 'viem';
 import { ADDRESSES } from '../contracts/addresses.js';
-import { type BscWalletClient, writeWbnb, writeSigmaController, writePoolManager, writeSy } from '../contracts/clients.js';
+import { type BscWalletClient, writeWbnb, writeSigmaController, writePoolManager, writeSy, readSy } from '../contracts/clients.js';
 import { poolManagerAbi } from '../contracts/abis/PoolManager.js';
 import { getBnbPrice, getPoolRiskParams, discoverPools } from './read.js';
 import type { TxResult, MintResult } from '../types.js';
@@ -13,14 +13,7 @@ import { txUrl } from '../config.js';
 import { ensureAllowance, extractPositionId } from './utils.js';
 import { saveEntry } from '../position-store.js';
 import { PRECISION } from './constants.js';
-
-async function wrapBnb(
-  publicClient: PublicClient, walletClient: BscWalletClient, amount: bigint,
-): Promise<void> {
-  const wbnb = writeWbnb({ public: publicClient, wallet: walletClient });
-  const hash = await wbnb.write.deposit({ value: amount });
-  await publicClient.waitForTransactionReceipt({ hash });
-}
+import { convertProceeds, wrapBnbToWbnb } from './swap.js';
 
 // ── Mint Range Calculation ──
 
@@ -196,7 +189,7 @@ export async function mintAndEarnBnbUsd(params: {
   }
 
   if (collateral === 'BNB') {
-    await wrapBnb(publicClient, walletClient, amountWei);
+    await wrapBnbToWbnb(publicClient, walletClient, amountWei);
   }
 
   await ensureAllowance(publicClient, walletClient, ADDRESSES.WBNB, ADDRESSES.SIGMA_CONTROLLER, amountWei);
@@ -216,7 +209,7 @@ export async function closeMintPosition(params: {
   withdrawCollateral?: string;
   repayDebt?: string;
   dryRun?: boolean;
-}): Promise<TxResult> {
+}): Promise<TxResult & { outputAmount?: string; outputTokenName?: string }> {
   const { publicClient, walletClient, positionId, withdrawCollateral, repayDebt, dryRun } = params;
   const account = walletClient.account!;
 
@@ -243,10 +236,65 @@ export async function closeMintPosition(params: {
     return { hash: '0x0' as Hash, explorerUrl: 'DRY RUN - not executed' };
   }
 
+  const balanceOfAbi = [{ type: 'function', name: 'balanceOf', inputs: [{ name: '', type: 'address' }], outputs: [{ type: 'uint256' }], stateMutability: 'view' }] as const;
+
+  // Snapshot SY and slisBNB balances before operate (for collateral withdrawal conversion)
+  const [syBefore, slisBefore] = withdrawCollateral
+    ? await Promise.all([
+        readSy({ public: publicClient }).read.balanceOf([account.address]),
+        publicClient.readContract({ address: ADDRESSES.SLISBNB, abi: balanceOfAbi, functionName: 'balanceOf', args: [account.address] }),
+      ])
+    : [0n, 0n];
+
   const wc = { public: publicClient, wallet: walletClient };
   const hash = await writePoolManager(wc).write.operate(
     [pool, BigInt(positionId), collDelta, debtDelta],
   );
-  await publicClient.waitForTransactionReceipt({ hash });
-  return { hash, explorerUrl: txUrl(hash) };
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+  let outputAmount: string | undefined;
+  let outputTokenName: string | undefined;
+
+  // Convert withdrawn SY collateral → slisBNB → BNB
+  if (withdrawCollateral) {
+    try {
+      const syAfter = await publicClient.readContract({
+        address: ADDRESSES.SY, abi: balanceOfAbi,
+        functionName: 'balanceOf', args: [account.address],
+        blockNumber: receipt.blockNumber,
+      });
+      const syDelta = syAfter - syBefore;
+      if (syDelta > 0n) {
+        const sy = writeSy(wc);
+        const redeemHash = await sy.write.redeem([account.address, syDelta, ADDRESSES.SLISBNB, 0n, false]);
+        await publicClient.waitForTransactionReceipt({ hash: redeemHash });
+      }
+    } catch (e) {
+      console.error('Warning: SY redeem failed:', e instanceof Error ? e.message : e);
+    }
+
+    // Convert slisBNB → BNB
+    try {
+      const slisAfter = await publicClient.readContract({
+        address: ADDRESSES.SLISBNB, abi: balanceOfAbi,
+        functionName: 'balanceOf', args: [account.address],
+      });
+      const slisDelta = slisAfter - slisBefore;
+      if (slisDelta > 0n) {
+        const result = await convertProceeds({
+          publicClient, walletClient,
+          fromToken: 'slisBNB',
+          toToken: 'BNB',
+          amount: slisDelta,
+        });
+        outputAmount = formatUnits(result.outputAmount, 18);
+        outputTokenName = result.outputToken;
+      }
+    } catch (e) {
+      console.error('Warning: Failed to convert slisBNB to BNB:', e instanceof Error ? e.message : e);
+      outputTokenName = 'slisBNB (unconverted)';
+    }
+  }
+
+  return { hash, explorerUrl: txUrl(hash), outputAmount, outputTokenName };
 }

@@ -96,10 +96,11 @@ sigma dashboard price
 
 ### `sigma dashboard balances`
 
-Your token balances (BNB, WBNB, bnbUSD, SIGMA, xSIGMA, etc.).
+Your token balances (BNB, WBNB, bnbUSD, SIGMA, xSIGMA, etc.). Shows xSIGMA staked and unstaked amounts separately, plus an LP/gauge balances table for all Curve pools.
 
 ```bash
 sigma dashboard balances
+sigma dashboard balances --json
 ```
 
 ### `sigma dashboard positions`
@@ -263,6 +264,12 @@ sigma trade positions --json
 
 Open a leveraged long BNB position. You profit when BNB price goes up.
 
+| Option | Description |
+|--------|-------------|
+| `--collateral <token>` | Collateral token: `BNB`, `WBNB`, `USDT`, or `bnbUSD` |
+| `--amount <n>` | Amount of collateral to deposit |
+| `--leverage <n>` | Leverage multiplier (1-7x) |
+
 ```bash
 # 2x leverage with 0.1 BNB
 sigma trade open-long --collateral BNB --amount 0.1 --leverage 2
@@ -270,16 +277,37 @@ sigma trade open-long --collateral BNB --amount 0.1 --leverage 2
 # Maximum leverage (7x) with WBNB
 sigma trade open-long --collateral WBNB --amount 0.5 --leverage 7
 
+# Open long with USDT collateral
+sigma trade open-long --collateral USDT --amount 100 --leverage 3
+
+# Open long with bnbUSD collateral
+sigma trade open-long --collateral bnbUSD --amount 50 --leverage 2
+
 # Dry-run
 sigma trade open-long --collateral BNB --amount 0.1 --leverage 3 --dry-run
 ```
 
 ### `sigma trade open-short`
 
-Open a leveraged short BNB position. You profit when BNB price goes down. Requires bnbUSD as collateral.
+Open a leveraged short BNB position. You profit when BNB price goes down.
+
+| Option | Description |
+|--------|-------------|
+| `--collateral <token>` | Collateral token: `BNB`, `WBNB`, `USDT`, or `bnbUSD` |
+| `--amount <n>` | Amount of collateral to deposit |
+| `--leverage <n>` | Leverage multiplier (1-7x) |
 
 ```bash
+# Short with bnbUSD collateral
 sigma trade open-short --collateral bnbUSD --amount 100 --leverage 2
+
+# Short with BNB collateral (auto-converts to bnbUSD)
+sigma trade open-short --collateral BNB --amount 0.1 --leverage 3
+
+# Short with USDT collateral
+sigma trade open-short --collateral USDT --amount 50 --leverage 2
+
+# Dry-run
 sigma trade open-short --collateral bnbUSD --amount 50 --leverage 3 --dry-run
 ```
 
@@ -301,7 +329,18 @@ sigma trade close --position-id 7 --output USDT
 sigma trade close --position-id 7 --percent 25 --dry-run
 ```
 
-Output token options: `bnbUSD` (default), `BNB`, `WBNB`, `USDT`, `slisBNB`. Specify `--output BNB` if you want native BNB instead.
+Output token options: `BNB` (default for longs), `bnbUSD` (default for shorts), `WBNB`, `USDT`, `slisBNB`.
+
+```bash
+# Close a short and receive bnbUSD (default for shorts)
+sigma trade close --position-id 12
+
+# Close a long and receive BNB (default for longs)
+sigma trade close --position-id 7
+
+# Close and receive bnbUSD explicitly
+sigma trade close --position-id 7 --output bnbUSD
+```
 
 ### `sigma trade adjust`
 
@@ -319,6 +358,12 @@ sigma trade adjust --position-id 7 --leverage 1.5
 
 Add more collateral to an existing position (lowers LTV / increases health).
 
+| Option | Description |
+|--------|-------------|
+| `--position-id <id>` | Position to add collateral to |
+| `--collateral <token>` | Collateral token: `BNB`, `WBNB`, `USDT`, or `bnbUSD` |
+| `--amount <n>` | Amount of collateral to add |
+
 ```bash
 # Add 0.05 BNB to a long position
 sigma trade add --position-id 7 --collateral BNB --amount 0.05
@@ -331,17 +376,34 @@ sigma trade add --position-id 12 --collateral bnbUSD --amount 20
 
 Set a take-profit price on a position. When BNB hits this price, the position auto-closes.
 
+| Option | Description |
+|--------|-------------|
+| `--position-id <id>` | Position to set take-profit on |
+| `--price <n>` | Target BNB price to trigger the close |
+| `--percent <n>` | Percentage of position to close (default: 100) |
+| `--output <token>` | Output token on close: `BNB`, `WBNB`, `USDT`, `bnbUSD` (default: BNB for longs, bnbUSD for shorts) |
+
 ```bash
 # Close 100% of position #155 when BNB reaches $700
 sigma trade set-tp --position-id 155 --price 700
 
 # Close only 50% at $700
 sigma trade set-tp --position-id 155 --price 700 --percent 50
+
+# Take profit and receive USDT
+sigma trade set-tp --position-id 155 --price 700 --output USDT
 ```
 
 ### `sigma trade set-sl`
 
 Set a stop-loss price on a position. When BNB hits this price, the position auto-closes to limit losses.
+
+| Option | Description |
+|--------|-------------|
+| `--position-id <id>` | Position to set stop-loss on |
+| `--price <n>` | Target BNB price to trigger the close |
+| `--percent <n>` | Percentage of position to close (default: 100) |
+| `--output <token>` | Output token on close: `BNB`, `WBNB`, `USDT`, `bnbUSD` (default: BNB for longs, bnbUSD for shorts) |
 
 ```bash
 # Close 100% of position #155 if BNB drops to $580
@@ -349,6 +411,9 @@ sigma trade set-sl --position-id 155 --price 580
 
 # Close only 50% at $580 (keep the rest open)
 sigma trade set-sl --position-id 155 --price 580 --percent 50
+
+# Stop-loss and receive bnbUSD
+sigma trade set-sl --position-id 155 --price 580 --output bnbUSD
 ```
 
 ### `sigma trade monitor`
@@ -429,6 +494,26 @@ sigma trade cancel-order --position-id 155 --type tp
 sigma trade cancel-order --position-id 155 --type sl
 ```
 
+### `sigma trade recover`
+
+Recover stranded SY tokens from an incomplete long close. If a long position close succeeded (debt repaid, collateral withdrawn) but the SY-to-BNB conversion pipeline failed mid-way, this command redeems the remaining SY tokens and converts them to your chosen output token.
+
+| Option | Description |
+|--------|-------------|
+| `--amount <n>` | Amount of SY tokens to recover |
+| `--output <token>` | Output token: `BNB` (default), `WBNB`, `USDT`, `bnbUSD` |
+
+```bash
+# Recover stranded SY tokens to BNB
+sigma trade recover --amount 0.5
+
+# Recover to USDT instead
+sigma trade recover --amount 0.5 --output USDT
+
+# Dry-run first
+sigma trade recover --amount 0.5 --dry-run
+```
+
 ### TP/SL Example Workflow
 
 ```bash
@@ -482,14 +567,23 @@ Pool names: `SP`, `SP1`, `SP2`, `SP3`.
 
 ### `sigma pool deposit`
 
-Deposit tokens into a stability pool.
+Deposit tokens into a stability pool. By default, pool shares are automatically staked into the gauge to earn xSIGMA rewards. Use `--no-stake` to receive unstaked shares instead.
+
+> **Note:** The `SP` pool is currently suspended by the protocol. Use `SP1`, `SP2`, or `SP3` instead.
+
+| Option | Description |
+|--------|-------------|
+| `--pool <name>` | Pool name: `SP1`, `SP2`, `SP3` (SP is suspended) |
+| `--token <token>` | Deposit token: `bnbUSD` or `USDT` |
+| `--amount <n>` | Amount to deposit |
+| `--no-stake` | Skip auto-staking; receive pool shares in your wallet instead |
 
 ```bash
-# Deposit 100 bnbUSD into SP1
+# Deposit 100 bnbUSD into SP1 (shares are auto-staked into the gauge)
 sigma pool deposit --pool SP1 --token bnbUSD --amount 100
 
-# Deposit USDT
-sigma pool deposit --pool SP --token USDT --amount 50
+# Deposit USDT without auto-staking
+sigma pool deposit --pool SP1 --token USDT --amount 50 --no-stake
 ```
 
 ### `sigma pool withdraw`
@@ -619,6 +713,25 @@ Trigger the rebase distribution. Distributes accumulated protocol fees to xSIGMA
 sigma xsigma rebase
 ```
 
+### `sigma xsigma compound`
+
+Compound your xSIGMA rewards: claims staking rewards, converts SIGMA to xSIGMA, and re-stakes in a single transaction. Optionally refreshes your vote weights afterward.
+
+| Option | Description |
+|--------|-------------|
+| `--vote` | After compounding, call `poke` to refresh vote weights with the new staked balance |
+
+```bash
+# Compound rewards (claim → convert → re-stake)
+sigma xsigma compound
+
+# Compound and refresh vote weights
+sigma xsigma compound --vote
+
+# Dry-run
+sigma xsigma compound --dry-run
+```
+
 ---
 
 ## 7. Governance — Voting and Incentives
@@ -716,11 +829,21 @@ Pool names: `bnbUSD-USDT`, `SIGMA-bnbUSD`, `bnbUSD-U`.
 
 ### `sigma lp add`
 
-Add liquidity to a Curve pool.
+Add liquidity to a Curve pool. By default, LP tokens are automatically staked into the gauge to earn xSIGMA rewards. Use `--no-stake` to receive unstaked LP tokens instead.
+
+| Option | Description |
+|--------|-------------|
+| `--pool <name>` | Pool name: `bnbUSD-USDT`, `SIGMA-bnbUSD`, `bnbUSD-U` |
+| `--amounts <a,b>` | Comma-separated token amounts per pool token |
+| `--no-stake` | Skip auto-staking; receive LP tokens in your wallet instead |
 
 ```bash
 # Add liquidity to bnbUSD-USDT pool (amounts are comma-separated per token)
+# LP tokens are auto-staked into the gauge
 sigma lp add --pool bnbUSD-USDT --amounts 100,100
+
+# Add liquidity without auto-staking
+sigma lp add --pool bnbUSD-USDT --amounts 100,100 --no-stake
 ```
 
 ### `sigma lp remove`

@@ -13,7 +13,7 @@ const SIGMA_ART = `
 `;
 
 const LOGO_TEXT = `  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-  ┃  sigma.money CLI  v1.1.0      ┃
+  ┃  sigma.money CLI  v1.2.0      ┃
   ┃  DeFi on BNB Chain            ┃
   ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛`;
 

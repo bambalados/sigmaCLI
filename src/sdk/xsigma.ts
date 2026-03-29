@@ -4,12 +4,13 @@ import {
   parseUnits,
   formatUnits,
 } from 'viem';
-import { ADDRESSES, VOTE_MODULE } from '../contracts/addresses.js';
-import { type BscWalletClient, readErc20, writeErc20, writeXSigma, readXSigma, readVoteModule, writeVoteModule } from '../contracts/clients.js';
+import { ADDRESSES, VOTE_MODULE, GAUGE_POOLS, SP_GAUGES } from '../contracts/addresses.js';
+import { type BscWalletClient, readErc20, writeErc20, writeXSigma, readXSigma, readVoteModule, writeVoteModule, readSigma, readCurveGauge, writeCurveGauge } from '../contracts/clients.js';
 import { xSigmaAbi } from '../contracts/abis/xSigma.js';
 import { voteModuleAbi } from '../contracts/abis/VoteModule.js';
 import type { TxResult } from '../types.js';
 import { txUrl } from '../config.js';
+import { ensureAllowance } from './utils.js';
 
 function wc(p: PublicClient, w: BscWalletClient) { return { public: p, wallet: w }; }
 function rc(p: PublicClient) { return { public: p }; }
@@ -257,4 +258,104 @@ export async function unstakeXSigma(params: {
   const hash = await writeVoteModule(wc(publicClient, walletClient)).write.withdraw([amountWei]);
   await publicClient.waitForTransactionReceipt({ hash });
   return { hash, explorerUrl: txUrl(hash) };
+}
+
+// ── Auto-Compound ──
+
+export interface CompoundResult {
+  rebaseClaimed: boolean;
+  gaugesClaimed: string[];
+  sigmaConverted: string;
+  xsigmaStaked: string;
+  voteRefreshed: boolean;
+}
+
+export async function compound(params: {
+  publicClient: PublicClient;
+  walletClient: BscWalletClient;
+  vote?: boolean;
+  dryRun?: boolean;
+}): Promise<CompoundResult> {
+  const { publicClient, walletClient, vote, dryRun } = params;
+  const account = walletClient.account!;
+  const c = rc(publicClient);
+  const w = wc(publicClient, walletClient);
+
+  const result: CompoundResult = {
+    rebaseClaimed: false,
+    gaugesClaimed: [],
+    sigmaConverted: '0',
+    xsigmaStaked: '0',
+    voteRefreshed: false,
+  };
+
+  if (dryRun) return result;
+
+  // 1. Claim staking rewards from VoteModule (xSIGMA)
+  try {
+    const earned = await readVoteModule(c).read.earned([account.address]);
+    if (earned > 0n) {
+      const hash = await writeVoteModule(w).write.getReward();
+      await publicClient.waitForTransactionReceipt({ hash });
+      result.rebaseClaimed = true;
+    }
+  } catch (e) {
+    console.error('Warning: Failed to claim rebase:', e instanceof Error ? e.message : e);
+  }
+
+  // 2. Claim SIGMA from all gauges where user has staked balance
+  const allGauges: { name: string; addr: `0x${string}` }[] = [
+    ...Object.entries(GAUGE_POOLS).map(([name, addr]) => ({ name, addr })),
+    ...Object.entries(SP_GAUGES).filter(([, addr]) => addr).map(([name, addr]) => ({ name, addr: addr! })),
+  ];
+
+  for (const gauge of allGauges) {
+    try {
+      const staked = await readCurveGauge(gauge.addr, c).read.balanceOf([account.address]);
+      if (staked > 0n) {
+        const hash = await writeCurveGauge(gauge.addr, w).write.claim_rewards();
+        await publicClient.waitForTransactionReceipt({ hash });
+        result.gaugesClaimed.push(gauge.name);
+      }
+    } catch {}
+  }
+
+  // 3. Convert any SIGMA balance to xSIGMA
+  const sigmaBalance = await readSigma(c).read.balanceOf([account.address]);
+  if (sigmaBalance > 0n) {
+    try {
+      await ensureAllowance(publicClient, walletClient, ADDRESSES.SIGMA, ADDRESSES.XSIGMA, sigmaBalance);
+      const hash = await writeXSigma(w).write.convertEmissionsToken([sigmaBalance]);
+      await publicClient.waitForTransactionReceipt({ hash });
+      result.sigmaConverted = formatUnits(sigmaBalance, 18);
+    } catch (e) {
+      console.error('Warning: Failed to convert SIGMA:', e instanceof Error ? e.message : e);
+    }
+  }
+
+  // 4. Stake all xSIGMA into VoteModule
+  const xsigmaBalance = await readXSigma(c).read.balanceOf([account.address]);
+  if (xsigmaBalance > 0n) {
+    try {
+      await ensureAllowance(publicClient, walletClient, ADDRESSES.XSIGMA, VOTE_MODULE, xsigmaBalance);
+      const hash = await writeVoteModule(w).write.deposit([xsigmaBalance]);
+      await publicClient.waitForTransactionReceipt({ hash });
+      result.xsigmaStaked = formatUnits(xsigmaBalance, 18);
+    } catch (e) {
+      console.error('Warning: Failed to stake xSIGMA:', e instanceof Error ? e.message : e);
+    }
+  }
+
+  // 5. Refresh vote weights if requested
+  if (vote) {
+    try {
+      const { pokeVote } = await import('./governance.js');
+      await pokeVote({ publicClient, walletClient });
+      result.voteRefreshed = true;
+    } catch (e) {
+      console.error('Warning: Failed to refresh votes:', e instanceof Error ? e.message : e);
+    }
+  }
+
+  return result;
 }

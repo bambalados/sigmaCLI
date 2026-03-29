@@ -4,6 +4,7 @@ import { createBscPublicClient } from '../../config.js';
 import { getPrivateKey, createAccount, createBscWalletClient } from '../../wallet.js';
 import {
   deposit,
+  depositAndStake,
   requestWithdraw,
   instantWithdraw,
   claimWithdrawal,
@@ -29,31 +30,57 @@ function getWallet(opts: GlobalOptions) {
 
 pool
   .command('deposit')
-  .description('Deposit into a stability pool')
+  .description('Deposit into a stability pool (auto-stakes shares into gauge)')
   .requiredOption('--pool <name>', 'Pool: SP, SP1, SP2, SP3')
   .requiredOption('--token <type>', 'Token: bnbUSD or USDT')
   .requiredOption('--amount <n>', 'Amount to deposit')
+  .option('--no-stake', 'Skip automatic share staking into gauge')
   .action(async (cmdOpts) => {
     const opts = program.opts<GlobalOptions>();
     try {
       const { publicClient, walletClient } = getWallet(opts);
-      const result = await maybeWithSpinner('Depositing into stability pool...', opts.json, () =>
-        deposit({
-          publicClient,
-          walletClient,
-          pool: cmdOpts.pool as PoolName,
-          token: cmdOpts.token as 'bnbUSD' | 'USDT',
-          amount: cmdOpts.amount,
-          dryRun: opts.dryRun,
-        })
-      );
 
-      if (opts.json) {
-        outputJson(result);
-      } else if (opts.dryRun) {
-        outputSuccess('Dry run successful - deposit would succeed');
+      if (cmdOpts.stake === false) {
+        const result = await maybeWithSpinner('Depositing into stability pool...', opts.json, () =>
+          deposit({
+            publicClient,
+            walletClient,
+            pool: cmdOpts.pool as PoolName,
+            token: cmdOpts.token as 'bnbUSD' | 'USDT',
+            amount: cmdOpts.amount,
+            dryRun: opts.dryRun,
+          })
+        );
+        if (opts.json) {
+          outputJson(result);
+        } else if (opts.dryRun) {
+          outputSuccess('Dry run successful - deposit would succeed');
+        } else {
+          outputTxResult(result.hash, result.explorerUrl);
+        }
       } else {
-        outputTxResult(result.hash, result.explorerUrl);
+        const result = await maybeWithSpinner('Depositing and staking...', opts.json, () =>
+          depositAndStake({
+            publicClient,
+            walletClient,
+            pool: cmdOpts.pool as PoolName,
+            token: cmdOpts.token as 'bnbUSD' | 'USDT',
+            amount: cmdOpts.amount,
+            dryRun: opts.dryRun,
+          })
+        );
+        if (opts.json) {
+          outputJson(result);
+        } else if (opts.dryRun) {
+          outputSuccess('Dry run successful - deposit would succeed');
+        } else {
+          outputTxResult(result.hash, result.explorerUrl);
+          if (result.staked) {
+            outputSuccess(`Shares staked in gauge: ${result.shareAmount}`);
+          } else if (result.stakeError) {
+            outputWarn(`Shares not staked: ${result.stakeError}`);
+          }
+        }
       }
     } catch (e) {
       handleError(e, opts.json);

@@ -12,6 +12,7 @@ import {
   getUserVests,
   stakeXSigma,
   unstakeXSigma,
+  compound,
 } from '../../sdk/xsigma.js';
 import { outputJson, outputTxResult, outputSuccess, outputKeyValue, outputTable, outputWarn } from '../../output.js';
 import type { GlobalOptions } from '../../types.js';
@@ -267,6 +268,46 @@ xsigma
       if (opts.json) outputJson(result);
       else if (opts.dryRun) outputSuccess('Dry run successful — unstake would succeed');
       else outputTxResult(result.hash, result.explorerUrl);
+    } catch (e) {
+      handleError(e, opts.json);
+    }
+  });
+
+xsigma
+  .command('compound')
+  .description('Auto-compound: claim rewards → convert SIGMA → stake xSIGMA')
+  .option('--vote', 'Refresh vote weights after staking')
+  .action(async (cmdOpts) => {
+    const opts = program.opts<GlobalOptions>();
+    try {
+      const key = getPrivateKey(opts.privateKey);
+      const account = createAccount(key);
+      const publicClient = createBscPublicClient();
+      const walletClient = createBscWalletClient(account);
+
+      const result = await maybeWithSpinner('Compounding rewards...', opts.json, () =>
+        compound({
+          publicClient,
+          walletClient,
+          vote: cmdOpts.vote,
+          dryRun: opts.dryRun,
+        })
+      );
+
+      if (opts.json) {
+        outputJson(result);
+      } else if (opts.dryRun) {
+        outputSuccess('Dry run successful');
+      } else {
+        if (result.rebaseClaimed) outputSuccess('Claimed staking rebase from VoteModule');
+        if (result.gaugesClaimed.length > 0) outputSuccess(`Claimed rewards from gauges: ${result.gaugesClaimed.join(', ')}`);
+        if (result.sigmaConverted !== '0') outputSuccess(`Converted ${result.sigmaConverted} SIGMA → xSIGMA`);
+        if (result.xsigmaStaked !== '0') outputSuccess(`Staked ${result.xsigmaStaked} xSIGMA in VoteModule`);
+        if (result.voteRefreshed) outputSuccess('Vote weights refreshed');
+        if (!result.rebaseClaimed && result.gaugesClaimed.length === 0 && result.sigmaConverted === '0' && result.xsigmaStaked === '0') {
+          outputWarn('Nothing to compound — no pending rewards or unstaked xSIGMA');
+        }
+      }
     } catch (e) {
       handleError(e, opts.json);
     }

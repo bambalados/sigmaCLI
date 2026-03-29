@@ -15,6 +15,7 @@ import { discoverPools, getPoolRiskParams, getPoolInfo, getBnbPrice, getPosition
 import { outputJson, outputTxResult, outputSuccess, outputKeyValue, outputTable, outputWarn, outputError } from '../../output.js';
 import type { GlobalOptions, CollateralType } from '../../types.js';
 import type { OutputToken } from '../../sdk/swap.js';
+import { convertProceeds } from '../../sdk/swap.js';
 import { maybeWithSpinner } from '../../spinner.js';
 import { saveOrder, getOrdersForWallet, removeOrder } from '../../order-store.js';
 import { getEntry } from '../../position-store.js';
@@ -39,7 +40,7 @@ function getWallet(opts: GlobalOptions) {
 trade
   .command('open-long')
   .description('Open a leveraged long BNB position (xPOSITION)')
-  .requiredOption('--collateral <type>', 'Collateral type: BNB or WBNB')
+  .requiredOption('--collateral <type>', 'Collateral type: BNB, WBNB, USDT, or bnbUSD')
   .requiredOption('--amount <n>', 'Collateral amount')
   .requiredOption('--leverage <n>', 'Leverage multiplier (1.2-7)')
   .action(async (cmdOpts) => {
@@ -74,7 +75,7 @@ trade
 trade
   .command('open-short')
   .description('Open a leveraged short BNB position via ShortPoolManager')
-  .requiredOption('--collateral <type>', 'Collateral: bnbUSD (required for shorts)')
+  .requiredOption('--collateral <type>', 'Collateral type: BNB, WBNB, USDT, or bnbUSD')
   .requiredOption('--amount <n>', 'Collateral amount in bnbUSD')
   .requiredOption('--leverage <n>', 'Leverage multiplier (1.2-7)')
   .action(async (cmdOpts) => {
@@ -111,7 +112,7 @@ trade
   .description('Close a position (fully or partially)')
   .requiredOption('--position-id <id>', 'Position NFT ID')
   .option('--percent <n>', 'Percent to close (1-100)', '100')
-  .option('--output <token>', 'Output token: BNB, WBNB, USDT, bnbUSD, slisBNB (default: bnbUSD)')
+  .option('--output <token>', 'Output token: BNB, WBNB, USDT, bnbUSD, slisBNB (default: BNB for longs, bnbUSD for shorts)')
   .action(async (cmdOpts) => {
     const opts = program.opts<GlobalOptions>();
     try {
@@ -134,7 +135,12 @@ trade
       } else {
         outputTxResult(result.hash, result.explorerUrl);
         if (result.outputAmount && result.outputTokenName) {
-          outputSuccess(`Output: ${result.outputAmount} ${result.outputTokenName}`);
+          if (result.outputTokenName.includes('(unconverted)')) {
+            outputWarn(`${result.outputAmount} ${result.outputTokenName} — conversion failed`);
+            outputWarn('Run `sigma trade recover` to swap stranded tokens to BNB');
+          } else {
+            outputSuccess(`Output: ${result.outputAmount} ${result.outputTokenName}`);
+          }
         }
       }
     } catch (e) {
@@ -177,7 +183,7 @@ trade
   .command('add')
   .description('Add collateral to existing position')
   .requiredOption('--position-id <id>', 'Position NFT ID')
-  .requiredOption('--collateral <type>', 'Collateral: BNB/WBNB for longs, bnbUSD for shorts')
+  .requiredOption('--collateral <type>', 'Collateral type: BNB, WBNB, USDT, or bnbUSD')
   .requiredOption('--amount <n>', 'Amount to add')
   .action(async (cmdOpts) => {
     const opts = program.opts<GlobalOptions>();
@@ -335,6 +341,7 @@ trade
   .requiredOption('--position-id <id>', 'Position NFT ID')
   .requiredOption('--price <price>', 'Trigger price in USD')
   .option('--percent <n>', 'Percent to close when triggered (1-100)', '100')
+  .option('--output <token>', 'Output token on trigger: BNB, WBNB, USDT, bnbUSD (default: BNB for longs, bnbUSD for shorts)')
   .action(async (cmdOpts) => {
     const opts = program.opts<GlobalOptions>();
     try {
@@ -374,13 +381,15 @@ trade
         type: 'take-profit',
         triggerPrice: cmdOpts.price,
         percent: parseInt(cmdOpts.percent),
+        outputToken: cmdOpts.output,
         createdAt: new Date().toISOString(),
       });
 
       if (opts.json) {
-        outputJson({ positionId: cmdOpts.positionId, type: 'take-profit', price: cmdOpts.price, percent: cmdOpts.percent });
+        outputJson({ positionId: cmdOpts.positionId, type: 'take-profit', price: cmdOpts.price, percent: cmdOpts.percent, outputToken: cmdOpts.output });
       } else {
-        outputSuccess(`Take-profit set for position #${cmdOpts.positionId} at $${cmdOpts.price} (${cmdOpts.percent}% close)`);
+        const outputInfo = cmdOpts.output ? `, output: ${cmdOpts.output}` : '';
+        outputSuccess(`Take-profit set for position #${cmdOpts.positionId} at $${cmdOpts.price} (${cmdOpts.percent}% close${outputInfo})`);
         console.log(pc.dim('  Run `sigma trade monitor` to activate price monitoring.'));
       }
     } catch (e) {
@@ -394,6 +403,7 @@ trade
   .requiredOption('--position-id <id>', 'Position NFT ID')
   .requiredOption('--price <price>', 'Trigger price in USD')
   .option('--percent <n>', 'Percent to close when triggered (1-100)', '100')
+  .option('--output <token>', 'Output token on trigger: BNB, WBNB, USDT, bnbUSD (default: BNB for longs, bnbUSD for shorts)')
   .action(async (cmdOpts) => {
     const opts = program.opts<GlobalOptions>();
     try {
@@ -432,13 +442,15 @@ trade
         type: 'stop-loss',
         triggerPrice: cmdOpts.price,
         percent: parseInt(cmdOpts.percent),
+        outputToken: cmdOpts.output,
         createdAt: new Date().toISOString(),
       });
 
       if (opts.json) {
-        outputJson({ positionId: cmdOpts.positionId, type: 'stop-loss', price: cmdOpts.price, percent: cmdOpts.percent });
+        outputJson({ positionId: cmdOpts.positionId, type: 'stop-loss', price: cmdOpts.price, percent: cmdOpts.percent, outputToken: cmdOpts.output });
       } else {
-        outputSuccess(`Stop-loss set for position #${cmdOpts.positionId} at $${cmdOpts.price} (${cmdOpts.percent}% close)`);
+        const outputInfo = cmdOpts.output ? `, output: ${cmdOpts.output}` : '';
+        outputSuccess(`Stop-loss set for position #${cmdOpts.positionId} at $${cmdOpts.price} (${cmdOpts.percent}% close${outputInfo})`);
         console.log(pc.dim('  Run `sigma trade monitor` to activate price monitoring.'));
       }
     } catch (e) {
@@ -595,8 +607,11 @@ trade
               const pnlColor = result.pnlUsd.startsWith('+') ? pc.green : pc.red;
               pnlLine = `  ${pc.dim('PnL:')} ${pnlColor(result.pnlUsd)} ${pnlColor(`(${result.pnlPercent})`)}`;
             }
+            const isUnconverted = result.outputTokenName?.includes('(unconverted)');
             const outputLine = result.outputAmount && result.outputTokenName
-              ? `  ${pc.dim('Received:')} ${pc.bold(result.outputAmount + ' ' + result.outputTokenName)}`
+              ? isUnconverted
+                ? `  ${pc.yellow('⚠')} ${pc.bold(result.outputAmount + ' ' + result.outputTokenName)} — run \`sigma trade recover\``
+                : `  ${pc.dim('Received:')} ${pc.bold(result.outputAmount + ' ' + result.outputTokenName)}`
               : '';
             const entryLine = result.entryPrice
               ? `  ${pc.dim('Entry:')} $${parseFloat(result.entryPrice.replace('$', '')).toFixed(2)} ${pc.dim('→ Exit:')} $${parseFloat(result.exitPrice).toFixed(2)}`
@@ -712,6 +727,59 @@ trade
         outputJson({ stopped: true, pid });
       } else {
         outputSuccess(`Monitor stopped (PID: ${pid})`);
+      }
+    } catch (e) {
+      handleError(e, opts.json);
+    }
+  });
+
+trade
+  .command('recover')
+  .description('Recover stranded slisBNB by swapping to BNB')
+  .option('--output <token>', 'Output token: BNB, WBNB, USDT (default: BNB)')
+  .action(async (cmdOpts) => {
+    const opts = program.opts<GlobalOptions>();
+    try {
+      const key = getPrivateKey(opts.privateKey);
+      const account = createAccount(key);
+      const publicClient = createBscPublicClient();
+      const walletClient = createBscWalletClient(account);
+      const { formatUnits } = await import('viem');
+      const { ADDRESSES } = await import('../../contracts/addresses.js');
+
+      const balanceOfAbi = [{ type: 'function', name: 'balanceOf', inputs: [{ name: '', type: 'address' }], outputs: [{ type: 'uint256' }], stateMutability: 'view' }] as const;
+
+      const slisBalance = await publicClient.readContract({
+        address: ADDRESSES.SLISBNB, abi: balanceOfAbi,
+        functionName: 'balanceOf', args: [account.address],
+      });
+
+      if (slisBalance === 0n) {
+        outputSuccess('No stranded slisBNB found in wallet');
+        return;
+      }
+
+      const outputToken = (cmdOpts.output as OutputToken) || 'BNB';
+      console.log(`\n  Found ${formatUnits(slisBalance, 18)} slisBNB — swapping to ${outputToken}...\n`);
+
+      if (opts.dryRun) {
+        outputSuccess(`Dry run: would swap ${formatUnits(slisBalance, 18)} slisBNB → ${outputToken}`);
+        return;
+      }
+
+      const result = await maybeWithSpinner('Recovering slisBNB...', opts.json, () =>
+        convertProceeds({
+          publicClient, walletClient,
+          fromToken: 'slisBNB',
+          toToken: outputToken,
+          amount: slisBalance,
+        })
+      );
+
+      if (opts.json) {
+        outputJson({ outputAmount: formatUnits(result.outputAmount, 18), outputToken: result.outputToken });
+      } else {
+        outputSuccess(`Recovered: ${formatUnits(result.outputAmount, 18)} ${result.outputToken}`);
       }
     } catch (e) {
       handleError(e, opts.json);

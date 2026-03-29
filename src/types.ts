@@ -21,8 +21,14 @@ export interface TokenBalances {
   bnbusd: string;
   sigma: string;
   xsigma: string;
+  xsigmaStaked: string;
   usdt: string;
   u: string;
+  lp: {
+    'bnbUSD-USDT': { wallet: string; staked: string };
+    'SIGMA-bnbUSD': { wallet: string; staked: string };
+    'bnbUSD-U': { wallet: string };
+  };
 }
 
 // Position info (basic display)

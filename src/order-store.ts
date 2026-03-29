@@ -12,6 +12,7 @@ export interface Order {
   type: 'take-profit' | 'stop-loss';
   triggerPrice: string;
   percent: number;
+  outputToken?: string;
   createdAt: string;
 }
 

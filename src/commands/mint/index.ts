@@ -158,6 +158,14 @@ mint
         outputSuccess(`Dry run successful — would ${parts.join(' + ')} on position #${cmdOpts.positionId}`);
       } else {
         outputTxResult(result.hash, result.explorerUrl);
+        if (result.outputAmount && result.outputTokenName) {
+          if (result.outputTokenName.includes('(unconverted)')) {
+            outputWarn(`${result.outputAmount} ${result.outputTokenName} — conversion failed`);
+            outputWarn('Run `sigma trade recover` to swap stranded tokens to BNB');
+          } else {
+            outputSuccess(`Received: ${result.outputAmount} ${result.outputTokenName}`);
+          }
+        }
       }
     } catch (e) {
       handleError(e, opts.json);
