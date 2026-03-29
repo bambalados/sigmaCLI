@@ -114,6 +114,23 @@ Key contract details:
 8. SP (Lista-MEV Vault) is suspended — deposits disabled in CLI, withdrawals still work
 9. `xsigma rebase` reverts with `NOT_MINTER()` for all users — only the Voter/minter contract can call `xSIGMA.rebase()`. Users should use `gov claim-rebase` (claims VoteModule rewards) or `xsigma compound` (full auto-compound). **V1.3**: fix or remove this command
 
+## V1.3 Roadmap (PLANNED)
+
+### Fixes
+- [ ] **xsigma rebase**: Remove or replace with pre-check + helpful error (reverts with `NOT_MINTER()` for all users — see Known Issue #2/#9)
+- [ ] **LP token order auto-detection**: `lp add` should auto-detect coin order from the Curve pool instead of requiring users to know `[USDT, bnbUSD]` vs `[bnbUSD, USDT]` — see Known Issue #1
+- [ ] **redeem/keeper pre-checks**: Read contract state before calling to give clear errors instead of raw reverts — see Known Issue #3
+- [ ] **SP3 exchange rate display**: Show human-friendly amounts accounting for ~21:1 share/token ratio — see Known Issue #4
+
+### Features
+- [ ] **Monitor reboot persistence**: launchd (macOS) / systemd (Linux) integration so `trade monitor --background` survives reboots — see Known Issue #6
+- [ ] **Portfolio overview**: Total PnL across all positions, total staked value, total rewards earned
+- [ ] **Notifications**: Telegram/Discord alerts when TP/SL triggers or position health drops
+
+### Testing
+- All fixes and features must be tested on BSC mainnet before release
+- Update TEST_RESULTS.md with V1.3 test results
+
 ## Release Checklist
 
 Before submitting a release PR, follow [GOVERNANCE.md](GOVERNANCE.md) and ensure:
