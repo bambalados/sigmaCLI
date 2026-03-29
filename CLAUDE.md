@@ -56,6 +56,28 @@ Key contract details:
 - Position list filtered by pool to show only wallet-owned positions
 - 71 commands across 11 groups (up from 64 in V1.0)
 
+## V1.2 Status (COMPLETE)
+
+### Feature 1: Universal Collateral & Full Output Routing
+- Open long/short with any of BNB, WBNB, USDT, bnbUSD — CLI auto-converts
+- Pre-conversion: `convertToNativeBnb()` and `convertToBnbusd()` in swap.ts
+- Full output routing on close: all 5 output tokens supported for longs (BNB, WBNB, USDT, bnbUSD, slisBNB)
+- Added slisBNB→bnbUSD route (3-hop via WBNB and USDT) and USDT→bnbUSD Curve reverse swap
+- Default output: BNB for longs, bnbUSD for shorts (was broken — defaulted to unsupported bnbUSD for longs)
+
+### Feature 2: Auto-Stake & Auto-Compound
+- `lp add` and `pool deposit` auto-stake into gauge by default (`--no-stake` to opt out)
+- `xsigma compound` — claims rebase + gauge rewards, converts SIGMA→xSIGMA, stakes, optionally refreshes votes
+- `trade recover` — recovers stranded slisBNB from failed output conversions
+
+### Feature 3: Bug Fixes & UX Improvements
+- Fixed slisBNB stranding: close errors now show warning + suggest `sigma trade recover`
+- Mint close now converts SY→slisBNB→BNB (was leaving raw SY tokens)
+- Dashboard shows LP/gauge balances and xSIGMA staked vs unstaked
+- SP (Lista-MEV Vault) suspended — deposits blocked, withdrawals still work
+- TP/SL accept `--output` token for triggered closes
+- 73 commands across 11 groups (up from 71 in V1.1)
+
 ## Key Files
 
 | File | Purpose |
@@ -88,7 +110,9 @@ Key contract details:
 4. SP3 exchange rate: ~21:1 share/token ratio confuses users
 5. High-leverage positions (>=85% debt ratio) are vulnerable to protocol redemptions before TP/SL can fire — warn users but can't prevent
 6. Monitor process doesn't survive system reboot — user must restart `sigma trade monitor --background`
-7. Incomplete long close leaves SY tokens unredeemed if the conversion pipeline fails mid-way (operate succeeds but SY redeem/swap fails)
+7. ~~Incomplete long close leaves SY tokens unredeemed~~ — FIXED in V1.2 (mint close now converts SY→slisBNB→BNB; trade close shows warning + `sigma trade recover`)
+8. SP (Lista-MEV Vault) is suspended — deposits disabled in CLI, withdrawals still work
+9. `xsigma rebase` still reverts for non-privileged callers (protocol design, not a bug — use `gov claim-rebase` instead)
 
 ## Release Checklist
 

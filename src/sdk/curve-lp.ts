@@ -3,9 +3,10 @@ import {
   type Hash,
   type Address,
   parseUnits,
+  formatUnits,
 } from 'viem';
 import { ADDRESSES } from '../contracts/addresses.js';
-import { type BscWalletClient, writeCurvePool, writeCurveTwocrypto, writeCurveGauge } from '../contracts/clients.js';
+import { type BscWalletClient, writeCurvePool, writeCurveTwocrypto, writeCurveGauge, readErc20 } from '../contracts/clients.js';
 import type { TxResult, LpPoolName } from '../types.js';
 import { txUrl } from '../config.js';
 import { ensureAllowance } from './utils.js';
@@ -119,4 +120,53 @@ export async function unstakeLp(params: {
   const hash = await writeCurveGauge(gaugeAddr, { public: publicClient, wallet: walletClient }).write.withdraw([amountWei]);
   await publicClient.waitForTransactionReceipt({ hash });
   return { hash, explorerUrl: txUrl(hash) };
+}
+
+export async function addLiquidityAndStake(params: {
+  publicClient: PublicClient; walletClient: BscWalletClient;
+  pool: LpPoolName; amounts: [string, string]; dryRun?: boolean;
+}): Promise<TxResult & { staked: boolean; lpAmount?: string; stakeError?: string }> {
+  const { publicClient, walletClient, pool, dryRun } = params;
+  const account = walletClient.account!;
+  const lpToken = getLpTokenAddress(publicClient, pool);
+
+  if (dryRun) {
+    const result = await addLiquidity(params);
+    return { ...result, staked: false };
+  }
+
+  // Snapshot LP balance before
+  const lpBefore = await readErc20(lpToken, { public: publicClient }).read.balanceOf([account.address]);
+
+  const result = await addLiquidity(params);
+
+  // Compute LP delta
+  const lpAfter = await readErc20(lpToken, { public: publicClient }).read.balanceOf([account.address]);
+  const lpDelta = lpAfter - lpBefore;
+
+  if (lpDelta <= 0n) {
+    return { ...result, staked: false, stakeError: 'No LP tokens received' };
+  }
+
+  // Check if gauge exists for this pool
+  const gaugeAddr = LP_GAUGE_MAP[pool];
+  if (!gaugeAddr) {
+    return { ...result, staked: false, lpAmount: formatUnits(lpDelta, 18), stakeError: 'No gauge available for this pool' };
+  }
+
+  // Auto-stake LP into gauge
+  try {
+    await stakeLp({
+      publicClient, walletClient, pool,
+      amount: formatUnits(lpDelta, 18),
+    });
+    return { ...result, staked: true, lpAmount: formatUnits(lpDelta, 18) };
+  } catch (e) {
+    return {
+      ...result,
+      staked: false,
+      lpAmount: formatUnits(lpDelta, 18),
+      stakeError: e instanceof Error ? e.message : String(e),
+    };
+  }
 }

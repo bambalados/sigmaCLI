@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-03-29
+
+### Added
+
+- **Universal collateral**: Open long/short positions with any of 4 assets (BNB, WBNB, USDT, bnbUSD) — CLI auto-converts to required collateral via PancakeSwap V3 and Curve
+- **Full output routing**: Close positions to any token — added slisBNB→bnbUSD route (3-hop: slisBNB→WBNB→USDT→bnbUSD via Curve) and USDT→bnbUSD reverse Curve swap
+- **TP/SL output token**: `set-tp` and `set-sl` accept `--output <token>` so users specify what they receive when a TP/SL triggers
+- **Auto-stake LP/SP**: `lp add` and `pool deposit` now auto-stake into gauge by default; use `--no-stake` to opt out
+- **Auto-compound**: `sigma xsigma compound` — claims rebase + gauge rewards, converts SIGMA→xSIGMA, stakes, optionally refreshes votes (`--vote`)
+- **Recover command**: `sigma trade recover` — swaps any stranded slisBNB back to BNB (or `--output WBNB`/`USDT`)
+- **Dashboard LP/gauge balances**: `dashboard balances` now shows LP tokens in wallet vs staked in gauge, and xSIGMA staked vs unstaked
+- **Suspended pool protection**: SP (Lista-MEV Vault) deposits blocked with clear error; `pool stats` shows SP as SUSPENDED
+- **Mint close conversion**: Withdrawing collateral from mint positions now auto-converts SY→slisBNB→BNB instead of leaving raw SY tokens
+- 2 new commands (73 total, up from 71 in V1.1): `trade recover`, `xsigma compound`
+
+### Fixed
+
+- **slisBNB stranding bug**: Default output for long closes was `bnbUSD` but slisBNB→bnbUSD conversion was unsupported — positions closed on-chain but slisBNB stuck in wallet. Default is now `BNB` for longs, `bnbUSD` for shorts
+- **Close error handling**: `convertProceeds` wrapped in try/catch — if output conversion fails, tx hash and unconverted amount are still returned with actionable warning (`Run sigma trade recover`)
+- **Mint close leaving raw SY**: `closeMintPosition()` now converts withdrawn SY collateral to BNB instead of leaving intermediate tokens
+
+### Changed
+
+- `--collateral` flag on `open-long`, `open-short`, and `add` now accepts all 4 types (BNB, WBNB, USDT, bnbUSD)
+- `--output` flag on `close` help text updated to show side-aware defaults
+- `getDefaultOutputToken()` returns `BNB` for longs, `bnbUSD` for shorts (was `bnbUSD` for all)
+- `wrapBnb()` moved from `mint.ts` to `swap.ts` as shared `wrapBnbToWbnb()` utility
+
 ## [1.1.0] - 2026-03-25
 
 ### Added

@@ -2,8 +2,8 @@ import { Command } from 'commander';
 import { program, handleError } from '../../cli.js';
 import { createBscPublicClient } from '../../config.js';
 import { getPrivateKey, createAccount, createBscWalletClient } from '../../wallet.js';
-import { addLiquidity, removeLiquidity, stakeLp, unstakeLp } from '../../sdk/curve-lp.js';
-import { outputJson, outputTxResult, outputSuccess } from '../../output.js';
+import { addLiquidity, addLiquidityAndStake, removeLiquidity, stakeLp, unstakeLp } from '../../sdk/curve-lp.js';
+import { outputJson, outputTxResult, outputSuccess, outputWarn } from '../../output.js';
 import type { GlobalOptions, LpPoolName } from '../../types.js';
 import { maybeWithSpinner } from '../../spinner.js';
 
@@ -20,9 +20,10 @@ function getWallet(opts: GlobalOptions) {
 
 lp
   .command('add')
-  .description('Add liquidity to a Curve pool')
+  .description('Add liquidity to a Curve pool (auto-stakes LP into gauge)')
   .requiredOption('--pool <name>', 'Pool: bnbUSD-USDT, SIGMA-bnbUSD, or bnbUSD-U')
   .requiredOption('--amounts <a,b>', 'Comma-separated amounts for each token')
+  .option('--no-stake', 'Skip automatic LP staking into gauge')
   .action(async (cmdOpts) => {
     const opts = program.opts<GlobalOptions>();
     try {
@@ -30,18 +31,42 @@ lp
       const amounts = cmdOpts.amounts.split(',') as [string, string];
       if (amounts.length !== 2) throw new Error('Provide exactly 2 comma-separated amounts');
 
-      const result = await maybeWithSpinner('Adding liquidity...', opts.json, () =>
-        addLiquidity({
-          publicClient,
-          walletClient,
-          pool: cmdOpts.pool as LpPoolName,
-          amounts,
-          dryRun: opts.dryRun,
-        })
-      );
-      if (opts.json) outputJson(result);
-      else if (opts.dryRun) outputSuccess('Dry run successful');
-      else outputTxResult(result.hash, result.explorerUrl);
+      if (cmdOpts.stake === false) {
+        const result = await maybeWithSpinner('Adding liquidity...', opts.json, () =>
+          addLiquidity({
+            publicClient,
+            walletClient,
+            pool: cmdOpts.pool as LpPoolName,
+            amounts,
+            dryRun: opts.dryRun,
+          })
+        );
+        if (opts.json) outputJson(result);
+        else if (opts.dryRun) outputSuccess('Dry run successful');
+        else outputTxResult(result.hash, result.explorerUrl);
+      } else {
+        const result = await maybeWithSpinner('Adding liquidity and staking...', opts.json, () =>
+          addLiquidityAndStake({
+            publicClient,
+            walletClient,
+            pool: cmdOpts.pool as LpPoolName,
+            amounts,
+            dryRun: opts.dryRun,
+          })
+        );
+        if (opts.json) {
+          outputJson(result);
+        } else if (opts.dryRun) {
+          outputSuccess('Dry run successful');
+        } else {
+          outputTxResult(result.hash, result.explorerUrl);
+          if (result.staked) {
+            outputSuccess(`LP staked in gauge: ${result.lpAmount}`);
+          } else if (result.stakeError) {
+            outputWarn(`LP not staked: ${result.stakeError}`);
+          }
+        }
+      }
     } catch (e) {
       handleError(e, opts.json);
     }

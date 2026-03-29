@@ -10,7 +10,7 @@ export const program = new Command();
 program
   .name('sigma')
   .description('CLI for Sigma.Money DeFi protocol on BNB Chain')
-  .version('1.1.0')
+  .version('1.2.0')
   .option('--json', 'Output results as JSON (for agents/scripts)')
   .option('--dry-run', 'Simulate transaction without executing')
   .option('--private-key <key>', 'Private key for signing transactions')

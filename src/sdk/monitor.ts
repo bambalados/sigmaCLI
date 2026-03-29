@@ -122,6 +122,7 @@ export async function checkAndExecuteOrders(
         walletClient,
         positionId: order.positionId,
         percent: order.percent,
+        outputToken: order.outputToken as any,
       });
       removeOrder(order.walletAddress, order.positionId, order.type);
       // Also remove the other order type for same position (TP if SL triggered, or vice versa)
