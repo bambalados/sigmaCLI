@@ -219,7 +219,7 @@ sigma dashboard --rpc https://your-rpc-endpoint/
 | `sigma xsigma exit --amount <n>` | Instant exit (50% penalty) |
 | `sigma xsigma vest --amount <n>` | Create vesting position (14-180 days) |
 | `sigma xsigma exit-vest --vest-id <id>` | Exit a vesting position |
-| `sigma xsigma rebase` | Trigger xSIGMA rebase |
+| `sigma xsigma rebase` | Trigger xSIGMA rebase (minter-only, see `gov claim-rebase`) |
 | `sigma xsigma compound` | Auto-compound: claim rewards, convert, stake xSIGMA |
 | `sigma gov vote --gauge <addr> --weight <n>` | Vote on gauge emissions |
 | `sigma gov reset` | Reset all votes |
